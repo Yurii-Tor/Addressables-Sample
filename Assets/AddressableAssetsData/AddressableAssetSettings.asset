@@ -15,10 +15,10 @@ MonoBehaviour:
   m_DefaultGroup: a79795ec1e6a18b4099e1e3a09ddfc34
   m_currentHash:
     serializedVersion: 2
-    Hash: 00000000000000000000000000000000
+    Hash: e8ef92cb5e2cabc4f7e8ef23079faf2b
   m_DisableWriteTypeTree: 0
   m_OptimizeCatalogSize: 0
-  m_BuildRemoteCatalog: 0
+  m_BuildRemoteCatalog: 1
   m_BundleLocalCatalog: 0
   m_CatalogRequestsTimeout: 0
   m_DisableCatalogUpdateOnStart: 0
@@ -36,7 +36,7 @@ MonoBehaviour:
   m_EnableJsonCatalog: 0
   m_CatalogProviderType:
     m_AssemblyName: Unity.Addressables
-    m_ClassName: UnityEngine.AddressableAssets.ResourceProviders.BinaryCatalogProvider
+    m_ClassName: UnityEngine.AddressableAssets.ResourceProviders.JsonCatalogProvider
   m_NonRecursiveBuilding: 1
   m_AllowNestedBundleFolders: 0
   m_CCDEnabled: 0
@@ -58,10 +58,10 @@ MonoBehaviour:
   m_CheckForContentUpdateRestrictionsOption: 0
   m_MonoScriptBundleCustomNaming: 
   m_RemoteCatalogBuildPath:
-    m_Id: f8c92690be4fbf44eb8b766db41bcb3d
+    m_Id: 0fa053c509234d148afc7d9d1f06c6af
   m_RemoteCatalogLoadPath:
-    m_Id: dc3daf8d9bdbbd44695f65ee3d9986ed
-  m_ContentStateBuildPathProfileVariableName: 
+    m_Id: ded4b4e777b255341afab9a0280fe3f6
+  m_ContentStateBuildPathProfileVariableName: <default settings path>
   m_CustomContentStateBuildPath: 
   m_ContentStateBuildPath: 
   m_BuildAddressablesWithPlayerBuild: 0
@@ -109,6 +109,24 @@ MonoBehaviour:
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
       - m_Id: ded4b4e777b255341afab9a0280fe3f6
         m_Value: <undefined>
+      - m_Id: f8c92690be4fbf44eb8b766db41bcb3d
+        m_Value: '[UnityEngine.AddressableAssets.Addressables.BuildPath]/[BuildTarget]'
+    - m_InheritedParent: 
+      m_Id: 3be2e37a78e94aa4e8741b8438383e5e
+      m_ProfileName: Cloudflare
+      m_Values:
+      - m_Id: 0fa053c509234d148afc7d9d1f06c6af
+        m_Value: 'ServerData/[BuildTarget]'
+      - m_Id: 547acfb82db3f5c42910f97365f1f499
+        m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
+      - m_Id: 553767fd0ac1f0348bebb0a8d6172741
+        m_Value: '[UnityEditor.EditorUserBuildSettings.activeBuildTarget]'
+      - m_Id: 8cebcd93e66507e418cb17052b0f1508
+        m_Value: '[UnityEngine.AddressableAssets.Addressables.BuildPath]/[BuildTarget]'
+      - m_Id: dc3daf8d9bdbbd44695f65ee3d9986ed
+        m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
+      - m_Id: ded4b4e777b255341afab9a0280fe3f6
+        m_Value: 'https://addressables-sample.pages.dev/[BuildTarget]'
       - m_Id: f8c92690be4fbf44eb8b766db41bcb3d
         m_Value: '[UnityEngine.AddressableAssets.Addressables.BuildPath]/[BuildTarget]'
     - m_InheritedParent: 
@@ -169,7 +187,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 61526d2091d324a4eaad4240514c6a94, type: 2}
   - {fileID: 11400000, guid: 87337e6f8083d9c4ab736d0cf25706a1, type: 2}
   - {fileID: 11400000, guid: a38de1aa8f873e2459e329c86662e1c5, type: 2}
-  m_ActiveProfileId: 3328f409890c0954b9be441738b66703
+  m_ActiveProfileId: 3be2e37a78e94aa4e8741b8438383e5e
   m_ContentDirectoryCatalogNameMigrated: 0
   m_CatalogFormatMigrated: 1
   m_CrcCachedBundleFlagMigrated: 1
