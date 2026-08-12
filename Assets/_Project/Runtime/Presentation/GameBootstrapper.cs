@@ -18,6 +18,11 @@ namespace AddressablesSample.Game.Presentation
 
         private async void Start()
         {
+            if (_controller != null)
+            {
+                return;
+            }
+
             if (_config == null || _hud == null || _selectionInput == null || _targetSpawn == null)
             {
                 Debug.LogError("GameBootstrapper is missing one or more required scene references.", this);
@@ -56,6 +61,16 @@ namespace AddressablesSample.Game.Presentation
             _hud = hud;
             _selectionInput = selectionInput;
             _targetSpawn = targetSpawn;
+        }
+
+        internal void InstallControllerForTests(GameController controller)
+        {
+            if (_controller != null)
+            {
+                throw new System.InvalidOperationException("GameBootstrapper already owns a controller.");
+            }
+
+            _controller = controller ?? throw new System.ArgumentNullException(nameof(controller));
         }
 
         private void OnSelection(bool hitTarget)

@@ -678,6 +678,8 @@ Progress
 2026-08-12 — Milestone 2, “feat: add gameplay core and owned Addressables loading,” completed. The runtime assembly now contains the plain-C# controller/state machine, validated config projection, deterministic selector, Addressables abstraction, sole raw-handle owner, and presentation contracts. EditMode fakes and tests cover startup, hit/miss, failure, replacement, stale completion, teardown, and exact-once release paths.
 •
 2026-08-12 — Milestone 3, “feat: generate game scene and Addressables content,” completed. Idempotent Editor tooling now creates and reconciles the configuration, material, prefab, scene, fallback texture, Build Settings, Addressables settings, groups, schemas, entries, labels, and local/remote-template profiles. The generated scene contains the composition root, HUD, pointer input, camera, light, and target spawn while retaining the target prefab as runtime-only content.
+•
+2026-08-12 — Milestone 4, “test: cover gameplay and Addressables workflows,” completed. PlayMode coverage now drives the real generated scene with virtual mouse and touch input, verifies miss feedback and MaterialPropertyBlock behavior, exercises a real missing-key fallback, proves stale-result invalidation and destruction-time cleanup with delayed operations, and asserts zero task-owned Addressables owners after scene unload. Editor workflow automation selects Use Asset Database, performs a clean deterministic content build, selects Use Existing Build, restores Local defaults, and supports guarded optional HTTPS configuration/building.
 
 Decisions
 
@@ -697,6 +699,10 @@ Decisions
 2026-08-12 — Addressables play-mode builder selection is stored under Library rather than in a source asset. Setup explicitly selects BuildScriptFastMode by type, validation asserts the active type, and milestone 4 will restore it after the packed-build workflow.
 •
 2026-08-12 — Unity 6 serializes empty YAML scalar values with a trailing space. The repository's existing unity-yaml Git attribute now disables only the trailing-space whitespace diagnostic for Unity-generated YAML, allowing the required git diff --check gate to remain strict for source and documentation without hand-editing generated scene, prefab, Addressables, or meta files.
+•
+2026-08-12 — PlayMode tests use an embedded InputTestFixture so the generated scene and its runtime InputActions are unloaded before the isolated Input System is restored. Delayed fake owners deliberately allow a completion after disposal, providing a stronger stale-continuation proof than a fake that resolves cancellation immediately.
+•
+2026-08-12 — The initial real-loader PlayMode run exposed a Unity 6 lifecycle constraint: MaterialPropertyBlock.SetTexture rejects a null value during TargetView.Awake. TargetView now hides interaction/presentation in Awake and adds the texture override only after a non-null retained fallback or round texture is applied; this preserves the approved factory/ownership sequence.
 
 Validation
 
@@ -708,6 +714,8 @@ Validation
 2026-08-12 — Milestone 2 clean compilation passed in Logs/Milestone2Compile-4.log. The final EditMode run passed 34/34 tests with zero failures or skips in Logs/Milestone2-EditMode-4.xml. Source audits found no WaitForCompletion, Task.Wait, synchronous Completion.Result, runtime async void, material instantiation, or raw Addressables release outside UnityAddressableAssetLoader.cs. Targeted log scans found no compiler error, unhandled exception, invalid/double-handle, or test-failure signature.
 •
 2026-08-12 — Milestone 3 setup passed in Logs/Setup-1.log and Logs/Setup-2.log. A before/after SHA-256 snapshot covered all 63 owned generated files, folder metadata files, supplied texture importer metas, and EditorBuildSettings.asset; the identical second invocation changed zero files. Logs/Validation-Final.log records a successful standalone project validator run. Logs/Milestone3-EditMode-Final-2.xml passed 35/35 tests with zero failures or skips, including generated-project structural validation. Targeted log scans found no compiler, unhandled-exception, invalid-handle, missing-catalog, or test-failure signature; Unity licensing-service diagnostics were environmental and did not affect the successful runs.
+•
+2026-08-12 — Milestone 4 Use Asset Database validation passed 4/4 PlayMode tests in Logs/PlayMode-AssetDatabase.xml. Logs/AddressablesBuild.log records a clean schema-driven Local build with 24 catalog locations. The same 4/4 PlayMode tests passed against Use Existing Build in Logs/PlayMode-ExistingBuild.xml. Logs/RestoreLocal.log restored Local + Use Asset Database, and Logs/Milestone4-Validation.log confirmed the committed local baseline. The complete EditMode regression suite passed 35/35 in Logs/Milestone4-EditMode.xml. Targeted scans found no unexpected compiler/test error, unhandled exception, invalid/double handle, owner leak, or missing catalog/bundle message; the one missing-round warning is expected and asserted by the fallback test.
 
 Blockers
 
@@ -717,3 +725,5 @@ Blockers
 2026-08-12 — Optional live HTTPS delivery is intentionally unvalidated unless an actual endpoint is supplied; this does not block the mandatory local implementation.
 •
 2026-08-12 — ProjectSettings/EditorBuildSettings.asset now contains both required task changes and a pre-existing unrelated App UI registration; only the task hunks will be staged. Unity also generated ProjectSettings/SceneTemplateSettings.json during scene creation; it is outside the approved deliverable and remains unstaged with the other unrelated settings changes.
+•
+2026-08-12 — Optional remote HTTPS delivery remains intentionally unvalidated because no endpoint was supplied. The guarded workflow is implemented, but no remote URL, credentials, ServerData, catalog, or bundle output will be committed.

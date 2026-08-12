@@ -26,6 +26,9 @@ namespace AddressablesSample.Game.Presentation
 
         private void Awake()
         {
+            EnsureValidReferences();
+            _renderer.enabled = false;
+            _collider.enabled = false;
             EnsurePropertyBlock();
             ApplyPropertyBlock();
         }
@@ -127,7 +130,11 @@ namespace AddressablesSample.Game.Presentation
             EnsureValidReferences();
             EnsurePropertyBlock();
             _propertyBlock.Clear();
-            _propertyBlock.SetTexture(BaseMapId, _texture);
+            if (_texture != null)
+            {
+                _propertyBlock.SetTexture(BaseMapId, _texture);
+            }
+
             _propertyBlock.SetColor(BaseColorId, _color);
             _renderer.SetPropertyBlock(_propertyBlock);
         }

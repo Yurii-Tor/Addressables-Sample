@@ -1,0 +1,24 @@
+{
+  "name": "AddressablesSample.Game.PlayModeTests",
+  "rootNamespace": "AddressablesSample.Game.Tests.PlayMode",
+  "references": [
+    "AddressablesSample.Game.Runtime",
+    "Unity.Addressables",
+    "Unity.ResourceManager",
+    "Unity.InputSystem",
+    "Unity.InputSystem.TestFramework",
+    "UnityEngine.UI"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

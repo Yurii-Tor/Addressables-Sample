@@ -229,7 +229,7 @@ namespace AddressablesSample.Game.Editor
             return config;
         }
 
-        private static void ConfigureAddressables()
+        internal static AddressableAssetSettings ConfigureAddressables()
         {
             var settings = AddressableAssetSettingsDefaultObject.GetSettings(true);
             if (settings == null)
@@ -306,6 +306,7 @@ namespace AddressablesSample.Game.Editor
             EditorUtility.SetDirty(startup);
             EditorUtility.SetDirty(rounds);
             AssetDatabase.SaveAssets();
+            return settings;
         }
 
         private static AddressableAssetGroup GetOrCreateGroup(
