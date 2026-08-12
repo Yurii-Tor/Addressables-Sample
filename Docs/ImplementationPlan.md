@@ -674,6 +674,8 @@ Progress
 2026-08-12 — Pre-implementation audit completed. AGENTS.md, Docs/Requirements.md, this plan, the authoritative PDF, Git status/history, project version, package manifest/lock, repository assets, and Git LFS state were inspected. The working tree and index were clean at a3cab8b on main before implementation. The PDF and normalized requirements are consistent; no architecture change is required.
 •
 2026-08-12 — Milestone 1, “chore: establish implementation baseline,” completed. Addressables 4.0.1 resolved with its lock-file dependencies and the project completed a clean Unity batch compile. The manifest change is preserved in the user-created local commit fcbfc31; the resolved package lock and this execution record are committed separately without rewriting history.
+•
+2026-08-12 — Milestone 2, “feat: add gameplay core and owned Addressables loading,” completed. The runtime assembly now contains the plain-C# controller/state machine, validated config projection, deterministic selector, Addressables abstraction, sole raw-handle owner, and presentation contracts. EditMode fakes and tests cover startup, hit/miss, failure, replacement, stale completion, teardown, and exact-once release paths.
 
 Decisions
 
@@ -683,6 +685,10 @@ Decisions
 2026-08-12 — The Git safeguard against committing “generated Addressables content” is interpreted as excluding built catalogs, bundles, ServerData, and transient build output. Assets/AddressableAssetsData settings are milestone-3 source assets and will be committed because the approved deliverable explicitly requires them.
 •
 2026-08-12 — Milestone 2 will run all then-available core/ownership EditMode tests. Generated-project validation will be added and run in milestone 3, when its tooling and assets exist. Addressables workflow switching/build automation remains a milestone-4 deliverable.
+•
+2026-08-12 — The installed UGUI 2.0.0 runtime assembly is named UnityEngine.UI, not the Unity.UGUI label written in the plan. The Runtime asmdef uses the installed assembly name; this is a compile-level naming correction and does not change the approved architecture.
+•
+2026-08-12 — AddressableLoad<T> owns both raw handle acquisition and construction-failure release so every production Addressables.Release call remains in that one owner class. Its typed Completed callback is unsubscribed before pending release, and Task continuations run asynchronously to make field-clear-before-dispose race handling deterministic.
 
 Validation
 
@@ -690,6 +696,8 @@ Validation
 2026-08-12 — Baseline confirmed: Unity 6000.3.21f1; URP 17.3.0; Input System 1.20.0; UGUI 2.0.0; Test Framework 1.6.0; Addressables absent as expected before milestone 1. git lfs status was clean and git lfs fsck passed.
 •
 2026-08-12 — Milestone 1 package resolution confirmed com.unity.addressables 4.0.1, com.unity.scriptablebuildpipeline 4.0.0, and com.unity.profiling.core 1.0.3 in Packages/packages-lock.json. Logs/Milestone1Compile.log records successful script compilation, batch-mode shutdown, and process return code 0; targeted compiler/package/error scans found no failures.
+•
+2026-08-12 — Milestone 2 clean compilation passed in Logs/Milestone2Compile-4.log. The final EditMode run passed 34/34 tests with zero failures or skips in Logs/Milestone2-EditMode-4.xml. Source audits found no WaitForCompletion, Task.Wait, synchronous Completion.Result, runtime async void, material instantiation, or raw Addressables release outside UnityAddressableAssetLoader.cs. Targeted log scans found no compiler error, unhandled exception, invalid/double-handle, or test-failure signature.
 
 Blockers
 

@@ -1,0 +1,19 @@
+{
+  "name": "AddressablesSample.Game.Runtime",
+  "rootNamespace": "AddressablesSample.Game",
+  "references": [
+    "Unity.Addressables",
+    "Unity.ResourceManager",
+    "Unity.InputSystem",
+    "UnityEngine.UI"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
