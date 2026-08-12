@@ -3,6 +3,7 @@
   "rootNamespace": "AddressablesSample.Game.Tests.EditMode",
   "references": [
     "AddressablesSample.Game.Runtime",
+    "AddressablesSample.Game.Editor",
     "Unity.Addressables",
     "Unity.ResourceManager"
   ],

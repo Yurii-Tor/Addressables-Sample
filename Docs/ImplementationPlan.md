@@ -676,6 +676,8 @@ Progress
 2026-08-12 — Milestone 1, “chore: establish implementation baseline,” completed. Addressables 4.0.1 resolved with its lock-file dependencies and the project completed a clean Unity batch compile. The manifest change is preserved in the user-created local commit fcbfc31; the resolved package lock and this execution record are committed separately without rewriting history.
 •
 2026-08-12 — Milestone 2, “feat: add gameplay core and owned Addressables loading,” completed. The runtime assembly now contains the plain-C# controller/state machine, validated config projection, deterministic selector, Addressables abstraction, sole raw-handle owner, and presentation contracts. EditMode fakes and tests cover startup, hit/miss, failure, replacement, stale completion, teardown, and exact-once release paths.
+•
+2026-08-12 — Milestone 3, “feat: generate game scene and Addressables content,” completed. Idempotent Editor tooling now creates and reconciles the configuration, material, prefab, scene, fallback texture, Build Settings, Addressables settings, groups, schemas, entries, labels, and local/remote-template profiles. The generated scene contains the composition root, HUD, pointer input, camera, light, and target spawn while retaining the target prefab as runtime-only content.
 
 Decisions
 
@@ -689,6 +691,12 @@ Decisions
 2026-08-12 — The installed UGUI 2.0.0 runtime assembly is named UnityEngine.UI, not the Unity.UGUI label written in the plan. The Runtime asmdef uses the installed assembly name; this is a compile-level naming correction and does not change the approved architecture.
 •
 2026-08-12 — AddressableLoad<T> owns both raw handle acquisition and construction-failure release so every production Addressables.Release call remains in that one owner class. Its typed Completed callback is unsubscribed before pending release, and Task continuations run asynchronously to make field-clear-before-dispose race handling deterministic.
+•
+2026-08-12 — Addressables 4.0.1 creates an immutable built-in Default profile. The generator retains it, creates exactly one task-owned Local profile and one inactive RemoteTemplate profile, and activates Local. This package constraint does not change the approved Local/RemoteTemplate workflow.
+•
+2026-08-12 — Addressables play-mode builder selection is stored under Library rather than in a source asset. Setup explicitly selects BuildScriptFastMode by type, validation asserts the active type, and milestone 4 will restore it after the packed-build workflow.
+•
+2026-08-12 — Unity 6 serializes empty YAML scalar values with a trailing space. The repository's existing unity-yaml Git attribute now disables only the trailing-space whitespace diagnostic for Unity-generated YAML, allowing the required git diff --check gate to remain strict for source and documentation without hand-editing generated scene, prefab, Addressables, or meta files.
 
 Validation
 
@@ -698,6 +706,8 @@ Validation
 2026-08-12 — Milestone 1 package resolution confirmed com.unity.addressables 4.0.1, com.unity.scriptablebuildpipeline 4.0.0, and com.unity.profiling.core 1.0.3 in Packages/packages-lock.json. Logs/Milestone1Compile.log records successful script compilation, batch-mode shutdown, and process return code 0; targeted compiler/package/error scans found no failures.
 •
 2026-08-12 — Milestone 2 clean compilation passed in Logs/Milestone2Compile-4.log. The final EditMode run passed 34/34 tests with zero failures or skips in Logs/Milestone2-EditMode-4.xml. Source audits found no WaitForCompletion, Task.Wait, synchronous Completion.Result, runtime async void, material instantiation, or raw Addressables release outside UnityAddressableAssetLoader.cs. Targeted log scans found no compiler error, unhandled exception, invalid/double-handle, or test-failure signature.
+•
+2026-08-12 — Milestone 3 setup passed in Logs/Setup-1.log and Logs/Setup-2.log. A before/after SHA-256 snapshot covered all 63 owned generated files, folder metadata files, supplied texture importer metas, and EditorBuildSettings.asset; the identical second invocation changed zero files. Logs/Validation-Final.log records a successful standalone project validator run. Logs/Milestone3-EditMode-Final-2.xml passed 35/35 tests with zero failures or skips, including generated-project structural validation. Targeted log scans found no compiler, unhandled-exception, invalid-handle, missing-catalog, or test-failure signature; Unity licensing-service diagnostics were environmental and did not affect the successful runs.
 
 Blockers
 
@@ -705,3 +715,5 @@ Blockers
 2026-08-12 — Resolved: the interactive Unity editor was closed before batch validation. Three unrelated Unity-generated settings changes remain unstaged and will be preserved outside task commits: Assets/Settings/Mobile_RPAsset.asset, ProjectSettings/EditorBuildSettings.asset, and ProjectSettings/ProjectSettings.asset.
 •
 2026-08-12 — Optional live HTTPS delivery is intentionally unvalidated unless an actual endpoint is supplied; this does not block the mandatory local implementation.
+•
+2026-08-12 — ProjectSettings/EditorBuildSettings.asset now contains both required task changes and a pre-existing unrelated App UI registration; only the task hunks will be staged. Unity also generated ProjectSettings/SceneTemplateSettings.json during scene creation; it is outside the approved deliverable and remains unstaged with the other unrelated settings changes.
