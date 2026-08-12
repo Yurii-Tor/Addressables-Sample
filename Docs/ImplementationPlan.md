@@ -665,3 +665,35 @@ git diff --check, git lfs status, and git lfs fsck succeed.
 No caches, logs, Addressables build outputs, credentials, active placeholder URL, or unrelated dirty files are staged.
 •
 Final report lists the local commits, test results, both validated local workflows, pre-existing untouched changes, and remote delivery as either validated with its URL or not validated because no endpoint was supplied.
+
+10. Living execution record
+
+Progress
+
+•
+2026-08-12 — Pre-implementation audit completed. AGENTS.md, Docs/Requirements.md, this plan, the authoritative PDF, Git status/history, project version, package manifest/lock, repository assets, and Git LFS state were inspected. The working tree and index were clean at a3cab8b on main before implementation. The PDF and normalized requirements are consistent; no architecture change is required.
+•
+2026-08-12 — Milestone 1, “chore: establish implementation baseline,” completed. Addressables 4.0.1 resolved with its lock-file dependencies and the project completed a clean Unity batch compile. The manifest change is preserved in the user-created local commit fcbfc31; the resolved package lock and this execution record are committed separately without rewriting history.
+
+Decisions
+
+•
+2026-08-12 — Addressables 4.0.1 provides Use Asset Database (fastest), not the legacy Simulate Groups play-mode script named generically in AGENTS.md and the PDF. The mandatory local-emulation validation will therefore use Use Asset Database with simulated latency, plus Use Existing Build, exactly as approved in this plan.
+•
+2026-08-12 — The Git safeguard against committing “generated Addressables content” is interpreted as excluding built catalogs, bundles, ServerData, and transient build output. Assets/AddressableAssetsData settings are milestone-3 source assets and will be committed because the approved deliverable explicitly requires them.
+•
+2026-08-12 — Milestone 2 will run all then-available core/ownership EditMode tests. Generated-project validation will be added and run in milestone 3, when its tooling and assets exist. Addressables workflow switching/build automation remains a milestone-4 deliverable.
+
+Validation
+
+•
+2026-08-12 — Baseline confirmed: Unity 6000.3.21f1; URP 17.3.0; Input System 1.20.0; UGUI 2.0.0; Test Framework 1.6.0; Addressables absent as expected before milestone 1. git lfs status was clean and git lfs fsck passed.
+•
+2026-08-12 — Milestone 1 package resolution confirmed com.unity.addressables 4.0.1, com.unity.scriptablebuildpipeline 4.0.0, and com.unity.profiling.core 1.0.3 in Packages/packages-lock.json. Logs/Milestone1Compile.log records successful script compilation, batch-mode shutdown, and process return code 0; targeted compiler/package/error scans found no failures.
+
+Blockers
+
+•
+2026-08-12 — Resolved: the interactive Unity editor was closed before batch validation. Three unrelated Unity-generated settings changes remain unstaged and will be preserved outside task commits: Assets/Settings/Mobile_RPAsset.asset, ProjectSettings/EditorBuildSettings.asset, and ProjectSettings/ProjectSettings.asset.
+•
+2026-08-12 — Optional live HTTPS delivery is intentionally unvalidated unless an actual endpoint is supplied; this does not block the mandatory local implementation.
