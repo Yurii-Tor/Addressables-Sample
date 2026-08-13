@@ -140,9 +140,10 @@ namespace AddressablesSample.Game.Tests.EditMode
         }
 
         [Test, Timeout(5000)]
-        public void HandleInvalidatedBySubsystem_DisposeDoesNotReleaseOrThrow()
+        public void InvalidOwnedHandle_DisposeDoesNotInvokeReleaseOrThrow()
         {
-            var handle = _resourceManager.CreateCompletedOperation(_texture, null);
+            var operation = new ManualOperation<Texture2D>();
+            var handle = _resourceManager.StartOperation(operation, default);
             var releaseCount = 0;
             var owner = AddressableLoad<Texture2D>.TakeOwnershipForTests(
                 handle,
@@ -152,11 +153,19 @@ namespace AddressablesSample.Game.Tests.EditMode
                     ownedHandle.Release();
                 });
 
-            handle.Release();
+            // Simulate Addressables invalidating its internal operation before the
+            // scene owner receives OnDestroy. Keep the original test handle only so
+            // the ResourceManager operation can be cleaned up after the assertion.
+            var handleField = typeof(AddressableLoad<Texture2D>).GetField(
+                "_handle",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(handleField, Is.Not.Null);
+            handleField.SetValue(owner, default(AsyncOperationHandle<Texture2D>));
 
-            Assert.That(handle.IsValid(), Is.False);
             Assert.DoesNotThrow(owner.Dispose);
             Assert.That(releaseCount, Is.Zero);
+
+            handle.Release();
         }
 
         private void PumpDeferredCallbacks()
