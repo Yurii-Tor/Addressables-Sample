@@ -24,6 +24,8 @@ namespace AddressablesSample.Game.Editor
         public const string RoundLabel = "round-texture";
         public const string LocalProfile = "Local";
         public const string RemoteProfile = "RemoteTemplate";
+        public const string HostedProfile = "Cloudflare";
+        public const string HostedBaseUrl = "https://addressables-sample.pages.dev";
         public const string RoundBuildPathVariable = "Round.BuildPath";
         public const string RoundLoadPathVariable = "Round.LoadPath";
 

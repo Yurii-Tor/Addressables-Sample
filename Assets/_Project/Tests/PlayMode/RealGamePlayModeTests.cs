@@ -68,6 +68,9 @@ namespace AddressablesSample.Game.Tests.PlayMode
             Assert.That(renderer.enabled, Is.True);
             Assert.That(target.TargetCollider.enabled, Is.True);
             Assert.That(block.GetTexture(Shader.PropertyToID("_BaseMap")), Is.SameAs(firstTexture));
+            Assert.That(block.GetVector(Shader.PropertyToID("_BaseMap_ST")),
+                Is.EqualTo(new Vector4(1f, -1f, 0f, 1f)));
+            Assert.That(renderer.sharedMaterial.GetFloat("_Surface"), Is.EqualTo(1f).Within(0.001f));
 
             var selectionObserved = false;
             var observedHit = false;
@@ -147,6 +150,7 @@ namespace AddressablesSample.Game.Tests.PlayMode
             Assert.That(observedHit, Is.False);
             Assert.That(observedFlash, Is.True);
             Assert.That(observedColor, Is.EqualTo(Color.red));
+            Assert.That(block.GetColor(Shader.PropertyToID("_EmissionColor")).r, Is.GreaterThan(1f));
             _inputFixture.Release(mouse.leftButton);
             Assert.That(bootstrapper.Controller.Score, Is.EqualTo(2));
             Assert.That(bootstrapper.Controller.ActiveRoundTask, Is.SameAs(taskBeforeMiss));
@@ -160,6 +164,7 @@ namespace AddressablesSample.Game.Tests.PlayMode
             yield return WaitForCondition(() => !target.IsFlashing, "The miss feedback did not finish.");
             renderer.GetPropertyBlock(block);
             Assert.That(block.GetColor(Shader.PropertyToID("_BaseColor")), Is.EqualTo(Color.white));
+            Assert.That(block.GetColor(Shader.PropertyToID("_EmissionColor")), Is.EqualTo(Color.black));
             Assert.That(block.GetTexture(Shader.PropertyToID("_BaseMap")), Is.SameAs(touchTexture));
 
             var gameScene = SceneManager.GetSceneByPath(GameScenePath);

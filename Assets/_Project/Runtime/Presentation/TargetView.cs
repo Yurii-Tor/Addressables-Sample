@@ -7,7 +7,11 @@ namespace AddressablesSample.Game.Presentation
     public sealed class TargetView : MonoBehaviour, ITargetView
     {
         private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
+        private static readonly int BaseMapStId = Shader.PropertyToID("_BaseMap_ST");
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+        private static readonly Vector4 CorrectedTextureTransform = new Vector4(1f, -1f, 0f, 1f);
+        private static readonly Color MissEmission = new Color(3f, 0f, 0f, 1f);
 
         [SerializeField] private Renderer _renderer;
         [SerializeField] private Collider _collider;
@@ -16,6 +20,7 @@ namespace AddressablesSample.Game.Presentation
         private MaterialPropertyBlock _propertyBlock;
         private Texture2D _texture;
         private Color _color = Color.white;
+        private Color _emission = Color.black;
         private Coroutine _flashCoroutine;
 
         public bool IsValid => this != null && _renderer != null && _collider != null;
@@ -67,6 +72,7 @@ namespace AddressablesSample.Game.Presentation
             }
 
             _color = Color.white;
+            _emission = Color.black;
             if (IsValid)
             {
                 ApplyPropertyBlock();
@@ -110,9 +116,11 @@ namespace AddressablesSample.Game.Presentation
         private IEnumerator FlashErrorRoutine()
         {
             _color = Color.red;
+            _emission = MissEmission;
             ApplyPropertyBlock();
-            yield return new WaitForSecondsRealtime(_errorFlashDuration);
+            yield return new WaitForSecondsRealtime(Mathf.Max(0.4f, _errorFlashDuration));
             _color = Color.white;
+            _emission = Color.black;
             ApplyPropertyBlock();
             _flashCoroutine = null;
         }
@@ -135,7 +143,9 @@ namespace AddressablesSample.Game.Presentation
                 _propertyBlock.SetTexture(BaseMapId, _texture);
             }
 
+            _propertyBlock.SetVector(BaseMapStId, CorrectedTextureTransform);
             _propertyBlock.SetColor(BaseColorId, _color);
+            _propertyBlock.SetColor(EmissionColorId, _emission);
             _renderer.SetPropertyBlock(_propertyBlock);
         }
 

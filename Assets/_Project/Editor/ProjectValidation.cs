@@ -11,6 +11,7 @@ using UnityEditor.AddressableAssets.Settings.GroupSchemas;
 using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -70,6 +71,22 @@ namespace AddressablesSample.Game.Editor
                 errors.Add("Target material must use Universal Render Pipeline/Lit.");
             }
 
+            if (material != null &&
+                (Math.Abs(material.GetFloat("_Surface") - 1f) > 0.001f ||
+                 material.GetTag("RenderType", false) != "Transparent" ||
+                 material.renderQueue != (int)RenderQueue.Transparent ||
+                 !material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT")))
+            {
+                errors.Add("Target material must use alpha-blended URP transparency.");
+            }
+
+            if (material != null &&
+                (material.GetTextureScale("_BaseMap") != new Vector2(1f, -1f) ||
+                 material.GetTextureOffset("_BaseMap") != new Vector2(0f, 1f)))
+            {
+                errors.Add("Target material must vertically correct the supplied textures.");
+            }
+
             if (fallback != null &&
                 (fallback.width != 8 || fallback.height != 8 ||
                  fallback.filterMode != FilterMode.Point || fallback.wrapMode != TextureWrapMode.Repeat))
@@ -103,6 +120,12 @@ namespace AddressablesSample.Game.Editor
             foreach (var path in TestTaskPaths.RoundTexturePaths)
             {
                 RequireAsset<Texture2D>(path, errors);
+                if (!(AssetImporter.GetAtPath(path) is TextureImporter importer) ||
+                    importer.alphaSource != TextureImporterAlphaSource.FromInput ||
+                    !importer.alphaIsTransparency)
+                {
+                    errors.Add("Round texture must preserve source transparency: " + path + ".");
+                }
             }
         }
 
@@ -414,11 +437,14 @@ namespace AddressablesSample.Game.Editor
                 "Addressables Local profile count", errors);
             RequireCount(profileNames.Count(name => name == TestTaskPaths.RemoteProfile), 1,
                 "Addressables RemoteTemplate profile count", errors);
+            RequireCount(profileNames.Count(name => name == TestTaskPaths.HostedProfile), 1,
+                "Addressables Cloudflare profile count", errors);
             var localId = profiles.GetProfileId(TestTaskPaths.LocalProfile);
             var remoteId = profiles.GetProfileId(TestTaskPaths.RemoteProfile);
-            if (string.IsNullOrEmpty(localId) || settings.activeProfileId != localId)
+            var hostedId = profiles.GetProfileId(TestTaskPaths.HostedProfile);
+            if (string.IsNullOrEmpty(localId))
             {
-                errors.Add("Local Addressables profile must exist and be active.");
+                errors.Add("Local Addressables profile must exist.");
             }
             else
             {
@@ -444,15 +470,81 @@ namespace AddressablesSample.Game.Editor
                     "https://YOUR_HOST/[BuildTarget]", errors);
             }
 
-            if (settings.BuildRemoteCatalog)
+            if (string.IsNullOrEmpty(hostedId))
             {
-                errors.Add("Remote catalog building must be disabled in the local baseline.");
+                errors.Add("Cloudflare Addressables profile must exist.");
+            }
+            else
+            {
+                AssertProfileValue(profiles, hostedId, TestTaskPaths.RoundBuildPathVariable,
+                    "ServerData/[BuildTarget]", errors);
+                var hostedLoadPath = profiles.GetValueByName(
+                    hostedId,
+                    TestTaskPaths.RoundLoadPathVariable);
+                const string buildTargetSuffix = "/[BuildTarget]";
+                var hostedBase = hostedLoadPath != null && hostedLoadPath.EndsWith(
+                    buildTargetSuffix,
+                    StringComparison.Ordinal)
+                    ? hostedLoadPath.Substring(0, hostedLoadPath.Length - buildTargetSuffix.Length)
+                    : string.Empty;
+                if (!Uri.TryCreate(hostedBase, UriKind.Absolute, out var hostedUri) ||
+                    hostedUri.Scheme != Uri.UriSchemeHttps ||
+                    string.IsNullOrWhiteSpace(hostedUri.Host) ||
+                    !string.IsNullOrEmpty(hostedUri.UserInfo) ||
+                    !string.IsNullOrEmpty(hostedUri.Query) ||
+                    !string.IsNullOrEmpty(hostedUri.Fragment))
+                {
+                    errors.Add("Cloudflare Round.LoadPath must be a public HTTPS URL ending in /[BuildTarget].");
+                }
             }
 
-            if (settings.RemoteCatalogBuildPath.GetName(settings) != AddressableAssetSettings.kLocalBuildPath ||
-                settings.RemoteCatalogLoadPath.GetName(settings) != AddressableAssetSettings.kLocalLoadPath)
+            var localActive = !string.IsNullOrEmpty(localId) && settings.activeProfileId == localId;
+            var hostedActive = !string.IsNullOrEmpty(hostedId) && settings.activeProfileId == hostedId;
+            if (!localActive && !hostedActive)
             {
-                errors.Add("The local Addressables catalog must use Local.BuildPath and Local.LoadPath.");
+                errors.Add("Either Local or Cloudflare must be the active Addressables profile.");
+            }
+            else if (localActive)
+            {
+                if (settings.BuildRemoteCatalog)
+                {
+                    errors.Add("Remote catalog building must be disabled while Local is active.");
+                }
+
+                if (settings.RemoteCatalogBuildPath.GetName(settings) != AddressableAssetSettings.kLocalBuildPath ||
+                    settings.RemoteCatalogLoadPath.GetName(settings) != AddressableAssetSettings.kLocalLoadPath)
+                {
+                    errors.Add("The local Addressables catalog must use Local.BuildPath and Local.LoadPath.");
+                }
+
+                if (!(settings.ActivePlayModeDataBuilder is BuildScriptFastMode))
+                {
+                    errors.Add("Use Asset Database (fastest) must be active while Local is active.");
+                }
+            }
+            else
+            {
+                if (!settings.BuildRemoteCatalog)
+                {
+                    errors.Add("Remote catalog building must be enabled while Cloudflare is active.");
+                }
+
+                if (settings.RemoteCatalogBuildPath.GetName(settings) != TestTaskPaths.RoundBuildPathVariable ||
+                    settings.RemoteCatalogLoadPath.GetName(settings) != TestTaskPaths.RoundLoadPathVariable)
+                {
+                    errors.Add("The Cloudflare catalog must use Round.BuildPath and Round.LoadPath.");
+                }
+
+                if (!(settings.ActivePlayModeDataBuilder is BuildScriptPackedPlayMode))
+                {
+                    errors.Add("Use Existing Build must be active while Cloudflare is active.");
+                }
+            }
+
+            if (settings.BuildAddressablesWithPlayerBuild !=
+                AddressableAssetSettings.PlayerBuildOption.DoNotBuildWithPlayer)
+            {
+                errors.Add("Player builds must use the explicitly prebuilt Addressables content.");
             }
 
             RequireCount(settings.GetLabels().Count(label => label == TestTaskPaths.RoundLabel), 1,
@@ -468,10 +560,6 @@ namespace AddressablesSample.Game.Editor
                 errors.Add("ResourceManager exception logging must be disabled so controlled failures log once.");
             }
 
-            if (!(settings.ActivePlayModeDataBuilder is BuildScriptFastMode))
-            {
-                errors.Add("Use Asset Database (fastest) must be the active play-mode builder.");
-            }
         }
 
         private static void ValidateGroup(

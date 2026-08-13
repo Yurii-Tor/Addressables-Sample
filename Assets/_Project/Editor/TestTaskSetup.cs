@@ -12,6 +12,7 @@ using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -80,6 +81,7 @@ namespace AddressablesSample.Game.Editor
                               !importer.sRGBTexture ||
                               importer.mipmapEnabled ||
                               importer.alphaSource != TextureImporterAlphaSource.FromInput ||
+                              !importer.alphaIsTransparency ||
                               importer.wrapMode != TextureWrapMode.Clamp ||
                               importer.filterMode != FilterMode.Bilinear;
                 if (!changed)
@@ -91,6 +93,7 @@ namespace AddressablesSample.Game.Editor
                 importer.sRGBTexture = true;
                 importer.mipmapEnabled = false;
                 importer.alphaSource = TextureImporterAlphaSource.FromInput;
+                importer.alphaIsTransparency = true;
                 importer.wrapMode = TextureWrapMode.Clamp;
                 importer.filterMode = FilterMode.Bilinear;
                 importer.SaveAndReimport();
@@ -150,7 +153,26 @@ namespace AddressablesSample.Game.Editor
 
             material.shader = shader;
             material.SetColor("_BaseColor", Color.white);
+            material.SetColor("_EmissionColor", Color.black);
+            material.SetTextureScale("_BaseMap", new Vector2(1f, -1f));
+            material.SetTextureOffset("_BaseMap", new Vector2(0f, 1f));
             material.SetFloat("_Smoothness", 0.2f);
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 0f);
+            material.SetFloat("_AlphaClip", 0f);
+            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
+            material.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0f);
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.EnableKeyword("_EMISSION");
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.SetShaderPassEnabled("ShadowCaster", false);
+            material.renderQueue = (int)RenderQueue.Transparent;
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
             EditorUtility.SetDirty(material);
             AssetDatabase.SaveAssetIfDirty(material);
             return material;
@@ -185,7 +207,7 @@ namespace AddressablesSample.Game.Editor
                 renderer.sharedMaterial = material;
                 collider.center = Vector3.zero;
                 collider.size = Vector3.one;
-                target.Configure(renderer, collider, 0.25f);
+                target.Configure(renderer, collider, 0.4f);
 
                 if (PrefabUtility.SaveAsPrefabAsset(root, TestTaskPaths.TargetPrefab, out var success) == null || !success)
                 {
@@ -262,6 +284,18 @@ namespace AddressablesSample.Game.Editor
 
             profiles.SetValue(remoteId, TestTaskPaths.RoundBuildPathVariable, RoundRemoteBuildPath);
             profiles.SetValue(remoteId, TestTaskPaths.RoundLoadPathVariable, RoundRemoteLoadPath);
+
+            var hostedId = profiles.GetProfileId(TestTaskPaths.HostedProfile);
+            if (string.IsNullOrEmpty(hostedId))
+            {
+                hostedId = profiles.AddProfile(TestTaskPaths.HostedProfile, localId);
+            }
+
+            profiles.SetValue(hostedId, TestTaskPaths.RoundBuildPathVariable, RoundRemoteBuildPath);
+            profiles.SetValue(
+                hostedId,
+                TestTaskPaths.RoundLoadPathVariable,
+                TestTaskPaths.HostedBaseUrl + "/[BuildTarget]");
             settings.activeProfileId = localId;
 
             var startup = GetOrCreateGroup(settings, TestTaskPaths.StartupGroup);
@@ -294,6 +328,8 @@ namespace AddressablesSample.Game.Editor
             }
             settings.SimulatedLoadDelay = 0.25f;
             settings.buildSettings.LogResourceManagerExceptions = false;
+            settings.BuildAddressablesWithPlayerBuild =
+                AddressableAssetSettings.PlayerBuildOption.DoNotBuildWithPlayer;
 
             var fastMode = settings.DataBuilders.FindIndex(builder => builder is BuildScriptFastMode);
             if (fastMode < 0)

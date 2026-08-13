@@ -139,6 +139,26 @@ namespace AddressablesSample.Game.Tests.EditMode
             deferredHold.Release();
         }
 
+        [Test, Timeout(5000)]
+        public void HandleInvalidatedBySubsystem_DisposeDoesNotReleaseOrThrow()
+        {
+            var handle = _resourceManager.CreateCompletedOperation(_texture, null);
+            var releaseCount = 0;
+            var owner = AddressableLoad<Texture2D>.TakeOwnershipForTests(
+                handle,
+                ownedHandle =>
+                {
+                    releaseCount++;
+                    ownedHandle.Release();
+                });
+
+            handle.Release();
+
+            Assert.That(handle.IsValid(), Is.False);
+            Assert.DoesNotThrow(owner.Dispose);
+            Assert.That(releaseCount, Is.Zero);
+        }
+
         private void PumpDeferredCallbacks()
         {
             var update = typeof(ResourceManager).GetMethod(

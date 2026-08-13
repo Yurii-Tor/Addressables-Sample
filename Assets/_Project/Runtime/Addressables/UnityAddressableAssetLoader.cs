@@ -70,7 +70,11 @@ namespace AddressablesSample.Game.AddressableAssets
             }
             catch
             {
-                UnityAddressables.Release(handle);
+                if (handle.IsValid())
+                {
+                    UnityAddressables.Release(handle);
+                }
+
                 throw;
             }
         }
@@ -121,7 +125,11 @@ namespace AddressablesSample.Game.AddressableAssets
                 return;
             }
 
-            handle.Completed -= OnCompleted;
+            if (handle.IsValid())
+            {
+                handle.Completed -= OnCompleted;
+            }
+
             _subscribed = false;
         }
 
@@ -143,7 +151,13 @@ namespace AddressablesSample.Game.AddressableAssets
 
             try
             {
-                _release(handle);
+                // Addressables may invalidate all outstanding operations before a scene
+                // bootstrapper receives OnDestroy while exiting Play Mode. In that case the
+                // subsystem already owns the cleanup and releasing the stale handle would throw.
+                if (handle.IsValid())
+                {
+                    _release(handle);
+                }
             }
             finally
             {
