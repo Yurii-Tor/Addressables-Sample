@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$ProjectName = "addressables-sample",
-    [string]$ServerDataPath = (Join-Path $PSScriptRoot "..\ServerData")
+    [string]$ServerDataPath = (Join-Path $PSScriptRoot "..\ServerData"),
+    [string]$PublicBaseUrl = "https://addressables-sample.pages.dev",
+    [switch]$SkipHttpVerification
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,6 +83,44 @@ Write-Host $serverData
 
 if ($LASTEXITCODE -ne 0) {
     throw "Wrangler deployment failed with exit code $LASTEXITCODE."
+}
+
+if (-not $SkipHttpVerification) {
+    $baseUri = $PublicBaseUrl.TrimEnd('/')
+    if (-not [Uri]::IsWellFormedUriString($baseUri, [UriKind]::Absolute) -or
+        -not $baseUri.StartsWith("https://", [StringComparison]::OrdinalIgnoreCase)) {
+        throw "PublicBaseUrl must be an absolute HTTPS URL."
+    }
+
+    $publishedFiles = @($jsonCatalogs) + @($hashCatalogs) + @($bundles)
+    foreach ($file in $publishedFiles) {
+        $relativePath = $file.FullName.Substring($serverData.Length).TrimStart([char[]]"\/")
+        $publicUrl = $baseUri + '/' + $relativePath.Replace('\', '/')
+        $verified = $false
+
+        for ($attempt = 1; $attempt -le 5; $attempt++) {
+            try {
+                $response = Invoke-WebRequest -Uri $publicUrl -Method Head -UseBasicParsing
+                if ($response.StatusCode -eq 200) {
+                    $verified = $true
+                    break
+                }
+            }
+            catch {
+                if ($attempt -eq 5) {
+                    throw "Published file did not return HTTP 200: $publicUrl`n$($_.Exception.Message)"
+                }
+            }
+
+            Start-Sleep -Seconds 2
+        }
+
+        if (-not $verified) {
+            throw "Published file did not return HTTP 200: $publicUrl"
+        }
+    }
+
+    Write-Host "Verified $($publishedFiles.Count) catalog/hash/bundle URLs over HTTPS."
 }
 
 Write-Host "Deployment completed successfully."
