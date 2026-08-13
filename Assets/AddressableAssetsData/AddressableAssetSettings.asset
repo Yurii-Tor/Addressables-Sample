@@ -15,7 +15,7 @@ MonoBehaviour:
   m_DefaultGroup: a79795ec1e6a18b4099e1e3a09ddfc34
   m_currentHash:
     serializedVersion: 2
-    Hash: e8ef92cb5e2cabc4f7e8ef23079faf2b
+    Hash: 00000000000000000000000000000000
   m_DisableWriteTypeTree: 0
   m_OptimizeCatalogSize: 0
   m_BuildRemoteCatalog: 1
@@ -58,13 +58,13 @@ MonoBehaviour:
   m_CheckForContentUpdateRestrictionsOption: 0
   m_MonoScriptBundleCustomNaming: 
   m_RemoteCatalogBuildPath:
-    m_Id: 0fa053c509234d148afc7d9d1f06c6af
+    m_Id: 8cebcd93e66507e418cb17052b0f1508
   m_RemoteCatalogLoadPath:
-    m_Id: ded4b4e777b255341afab9a0280fe3f6
+    m_Id: 547acfb82db3f5c42910f97365f1f499
   m_ContentStateBuildPathProfileVariableName: <default settings path>
   m_CustomContentStateBuildPath: 
   m_ContentStateBuildPath: 
-  m_BuildAddressablesWithPlayerBuild: 0
+  m_BuildAddressablesWithPlayerBuild: 2
   m_overridePlayerVersion: '[UnityEditor.PlayerSettings.bundleVersion]'
   m_GroupAssets:
   - {fileID: 11400000, guid: 3adad52710c18ec4abda2b95f85cf471, type: 2}
@@ -118,11 +118,11 @@ MonoBehaviour:
       - m_Id: 0fa053c509234d148afc7d9d1f06c6af
         m_Value: 'ServerData/[BuildTarget]'
       - m_Id: 547acfb82db3f5c42910f97365f1f499
-        m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
+        m_Value: 'https://addressables-sample.pages.dev/[BuildTarget]'
       - m_Id: 553767fd0ac1f0348bebb0a8d6172741
         m_Value: '[UnityEditor.EditorUserBuildSettings.activeBuildTarget]'
       - m_Id: 8cebcd93e66507e418cb17052b0f1508
-        m_Value: '[UnityEngine.AddressableAssets.Addressables.BuildPath]/[BuildTarget]'
+        m_Value: 'ServerData/[BuildTarget]'
       - m_Id: dc3daf8d9bdbbd44695f65ee3d9986ed
         m_Value: '{UnityEngine.AddressableAssets.Addressables.RuntimePath}/[BuildTarget]'
       - m_Id: ded4b4e777b255341afab9a0280fe3f6
