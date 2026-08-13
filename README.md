@@ -222,8 +222,7 @@ To return to the offline baseline, run **AddressablesSample > Game > Addressable
 
 ## 13. Known limitations and validation scope
 
-- The author supplied the configured Cloudflare endpoint and previously uploaded content. Because this repair changes rendering/import configuration, rebuild, republish, and rerun the remote smoke test before final delivery.
-- `ServerData`, the Wrangler publish script, and `.wrangler` project/account cache files are intentionally retained for this delivery. The cache contains account metadata but no authentication token was found; never add a Wrangler API token or environment-secret file to the archive.
+- The Wrangler publish script, and `.wrangler` project/account cache files are intentionally retained for this delivery. The cache contains account metadata but no authentication token was found; never add a Wrangler API token or environment-secret file to the archive.
 - Automated input coverage uses virtual Input System mouse and touchscreen devices in editor-hosted PlayMode. Run the documented prebuild first if executing tests in `PlayerWithTests`.
 - Addressables content is platform-specific. Rebuild and upload the matching `[BuildTarget]` directory before testing another platform.
 
