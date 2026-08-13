@@ -2,7 +2,7 @@
 
 ## 1. Project summary
 
-This Unity project implements the supplied one-scene selection game. It loads a target prefab, a retained fallback texture, and an ordered set of ten round textures through Addressables. Clicking or tapping the visible target increments the score and begins the next asynchronous texture request. Missing a target gives brief red feedback without changing the score or starting a round. Failed round loads apply the retained fallback and leave the game playable.
+This Unity project implements the supplied one-scene selection game. It loads a target prefab, a retained fallback texture, and an ordered set of ten round textures through Addressables. Clicking or tapping the visible target increments the score and begins the next asynchronous texture request. Missing a target gives a bright red/emissive flash without changing the score or starting a round. Failed round loads apply the retained fallback and leave the game playable. Source alpha is preserved and the supplied images are vertically corrected by the renderer property block.
 
 The implementation includes deterministic project-generation tooling, structural validation, EditMode lifecycle tests, PlayMode input and Addressables tests, and local workflows for both Asset Database emulation and built content.
 
@@ -32,7 +32,7 @@ New-Item -ItemType Directory -Force -Path Logs | Out-Null
 
 ## 4. Generate or repair the project
 
-In the Editor, use **AddressablesSample > Game > Setup Test Task**. This one-click setup creates or reconciles the generated scene, prefab, material, fallback texture, configuration, Build Settings, and Addressables source settings. It is safe to run repeatedly and preserves generated asset GUIDs and scene object identities.
+In the Editor, use **AddressablesSample > Game > Setup Test Task**. This one-click setup creates or reconciles the generated scene, prefab, transparent material, fallback texture, texture import settings, configuration, Build Settings, and Addressables source settings. It is safe to run repeatedly and preserves generated asset GUIDs and scene object identities. Setup intentionally restores the `Local` profile; select the Cloudflare workflow afterward when testing hosted content.
 
 The equivalent batch command is:
 
@@ -85,7 +85,7 @@ Choose **AddressablesSample > Game > Addressables > Use Asset Database**, or run
   -logFile Logs/UseAssetDatabase.log
 ```
 
-This activates the `Local` profile and is the committed/default development workflow. It does not require a content build or server.
+This activates the `Local` profile and is the setup/default development workflow. It does not require a content build or server.
 
 ## 8. Fresh build and Use Existing Build
 
@@ -142,6 +142,10 @@ Then build fresh content and run the same PlayMode suite against it:
 
 Expected results are 35 passing EditMode tests and 4 passing PlayMode tests in each Addressables mode, with zero failures or skips. XML results and full Editor logs are written under the ignored `Logs/` directory. The deliberate invalid-round test asserts its single expected warning; any other unexpected Unity exception/error during the test run fails the suite. Unity licensing-service startup diagnostics may still appear in a successful batch log and should be assessed separately from test output.
 
+`RealLoader_InvalidRoundKey_AppliesRealFallbackAndRemainsPlayable` still requires a valid startup catalog because the target prefab and fallback are genuine Addressables. If it reports `No Location found for Key=game/fallback`, the fallback logic has not failed: no catalog was loaded at all. Re-select **Use Asset Database**, or complete the Cloudflare build/deploy sequence below before rerunning it.
+
+If PlayMode tests are launched in a standalone `PlayerWithTests`, build Addressables content first. The project deliberately uses **Do not Build Addressables content on Player Build** so a player/test build consumes the explicitly validated content instead of silently rebuilding a different remote catalog.
+
 ## 10. Architecture and ownership
 
 `GameBootstrapper` is the scene composition root. `GameController` is a plain C# state machine that depends on small interfaces for loading, presentation, target creation, and diagnostics. Unity Addressables access is isolated behind `IAddressableAssetLoader`.
@@ -162,9 +166,41 @@ Addressables does not expose a reliable transport abort for `LoadAssetAsync`. Ca
 
 This is intentionally not described as aborting an underlying download.
 
-## 12. Optional HTTPS remote workflow
+## 12. Cloudflare HTTPS remote workflow
 
-Remote delivery is optional. Supply a real public HTTPS base URL with no credentials, query, fragment, placeholder, or `[BuildTarget]` segment:
+The concrete `Cloudflare` profile points to:
+
+```text
+https://addressables-sample.pages.dev/[BuildTarget]
+```
+
+The target prefab and fallback remain local startup content. The remote catalog and each round texture bundle are written to `ServerData/[BuildTarget]`; round textures use **Pack Separately**, so each new round can make an independent HTTPS request.
+
+After changing code, material settings, texture import settings, platform, or Addressables configuration, rebuild and republish in this exact order:
+
+1. Run **AddressablesSample > Game > Setup Test Task**.
+2. Run **AddressablesSample > Game > Addressables > Build Cloudflare Remote + Use Existing Build**.
+3. Wait for `Cloudflare Addressables content is ready in ServerData` in the Console.
+4. From the project root, publish the complete `ServerData` directory:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\Tools\Publish-RemoteContent.ps1
+```
+
+The equivalent batch build command is:
+
+```powershell
+& $unityPath -batchmode -nographics -quit -projectPath $projectPath `
+  -executeMethod AddressablesSample.Game.Editor.AddressablesWorkflow.BuildCloudflareAndUseExistingFromCommandLine `
+  -logFile Logs/AddressablesCloudflareBuild.log
+```
+
+The publish script waits for Cloudflare and verifies every catalog, hash, and bundle URL returns HTTP 200. After it reports a successful deployment, keep **Use Existing Build** active, open `Assets/_Project/Scenes/Game.unity`, and enter Play Mode. Clear the Console first. A successful run downloads the catalog over HTTPS, loads the local prefab/fallback once, and downloads individual round bundles from Cloudflare. Check the Console or the Addressables Event Viewer if proof of the requests is needed.
+
+If the correct remote content is already built in this project's `Library` and is already uploaded, **AddressablesSample > Game > Addressables > Use Uploaded Cloudflare Build** reactivates it without rebuilding or publishing. A freshly extracted checkout does not contain `Library`, so it must run the full build once even when an older deployment exists.
+
+For another HTTPS endpoint, the generic command remains available:
 
 ```powershell
 & $unityPath -batchmode -nographics -quit -projectPath $projectPath `
@@ -173,22 +209,23 @@ Remote delivery is optional. Supply a real public HTTPS base URL with no credent
   -logFile Logs/AddressablesRemoteBuild.log
 ```
 
-The command activates `RemoteTemplate`, maps the round-group and remote-catalog build paths to `ServerData/[BuildTarget]`, maps their load paths to the supplied HTTPS URL, performs a fresh build, and selects Use Existing Build. Upload the complete generated `ServerData/<BuildTarget>` contents to the matching HTTPS path while preserving filenames. Confirm the catalog, hash, and bundles return HTTP 200 and run multiple rounds. To verify fallback without a cache false-positive, make an as-yet-unrequested round bundle unavailable before its first load, or clear the Addressables/bundle cache before the failure run.
+### Testing fallback behavior
 
-Restore local content and defaults afterward:
+There are two levels of fallback validation:
 
-```powershell
-& $unityPath -batchmode -nographics -quit -projectPath $projectPath -executeMethod AddressablesSample.Game.Editor.AddressablesWorkflow.BuildLocalAndUseExistingFromCommandLine -logFile Logs/AddressablesBuild-LocalRestore.log
-& $unityPath -batchmode -nographics -quit -projectPath $projectPath -executeMethod AddressablesSample.Game.Editor.AddressablesWorkflow.RestoreLocalDefaultsFromCommandLine -logFile Logs/RestoreLocal.log
-```
+1. **Deterministic automated test:** select a valid Addressables workflow and run `RealLoader_InvalidRoundKey_AppliesRealFallbackAndRemainsPlayable`. It uses the real Addressables loader with a deliberately absent round key, verifies the retained fallback, verifies that the target remains selectable, and verifies teardown ownership.
+2. **Real HTTP 404 test:** exit Play Mode and run **AddressablesSample > Game > Addressables > Clear Download Cache**, then temporarily remove the `ant` bundle from `ServerData/StandaloneWindows64` and deploy that incomplete directory. Keep the catalog and hash unchanged. Start a fresh Play Mode session: the first round requests `ant`, receives a 404, applies `FallbackTexture`, shows `Image failed - using fallback. Tap the object!`, and remains playable. Restore the bundle to `ServerData`, deploy again immediately, and clear the cache before the final smoke test. Prefer doing this against a temporary Cloudflare Pages project because the public endpoint is intentionally incomplete during the probe.
 
-Do not commit hosted content, build outputs, URLs containing secrets, or credentials.
+Do not test by taking down the catalog itself. Without a catalog, the startup prefab and fallback keys cannot be resolved, so a startup fatal error is the correct result rather than a round-level fallback.
+
+To return to the offline baseline, run **AddressablesSample > Game > Addressables > Restore Local Defaults**.
 
 ## 13. Known limitations and validation scope
 
-- Live remote HTTPS delivery was not validated because no endpoint was supplied. The guarded workflow is implemented and its inactive `RemoteTemplate` baseline is structurally validated, but a configured remote build, upload, and load were not executed.
-- Automated input coverage uses virtual Input System mouse and touchscreen devices in editor-hosted PlayMode. Physical-device input and a standalone player build were not part of the supplied mandatory scope.
-- Local validation was performed on Windows with the exact Unity version listed above. Addressables content must be rebuilt for another active build target.
+- The author supplied the configured Cloudflare endpoint and previously uploaded content. Because this repair changes rendering/import configuration, rebuild, republish, and rerun the remote smoke test before final delivery.
+- `ServerData`, the Wrangler publish script, and `.wrangler` project/account cache files are intentionally retained for this delivery. The cache contains account metadata but no authentication token was found; never add a Wrangler API token or environment-secret file to the archive.
+- Automated input coverage uses virtual Input System mouse and touchscreen devices in editor-hosted PlayMode. Run the documented prebuild first if executing tests in `PlayerWithTests`.
+- Addressables content is platform-specific. Rebuild and upload the matching `[BuildTarget]` directory before testing another platform.
 
 ## 14. Asset attribution
 
