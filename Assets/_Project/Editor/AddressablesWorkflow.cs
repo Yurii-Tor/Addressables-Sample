@@ -52,7 +52,7 @@ namespace AddressablesSample.Game.Editor
             if (result == null || !string.IsNullOrEmpty(result.Error))
             {
                 throw new BuildFailedException(
-                    "Addressables local content build failed: " + (result == null ? "no result" : result.Error));
+                    "Addressables content build failed: " + (result == null ? "no result" : result.Error));
             }
 
             var packedSettingsPath = Path.Combine(Addressables.BuildPath, "settings.json");
@@ -61,10 +61,14 @@ namespace AddressablesSample.Game.Editor
                 !File.Exists(result.OutputPath) ||
                 !File.Exists(packedSettingsPath))
             {
-                throw new BuildFailedException("Addressables local content build produced no usable catalog.");
+                throw new BuildFailedException("Addressables content build produced no usable catalog.");
             }
 
+            settings.BuildAddressablesWithPlayerBuild =
+                AddressableAssetSettings.PlayerBuildOption.DoNotBuildWithPlayer;
             SelectPlayModeBuilder<BuildScriptPackedPlayMode>(settings);
+            EditorUtility.SetDirty(settings);
+            AssetDatabase.SaveAssets();
             var profileName = settings.profileSettings.GetProfileName(settings.activeProfileId);
             Debug.Log($"Addressables {profileName} content build completed with {result.LocationCount} locations. " +
                       "Use Existing Build is active.");
@@ -73,6 +77,62 @@ namespace AddressablesSample.Game.Editor
         public static void BuildLocalAndUseExistingFromCommandLine()
         {
             RunCommandLine(BuildLocalAndUseExisting);
+        }
+
+        [MenuItem("AddressablesSample/Game/Addressables/Build Cloudflare Remote + Use Existing Build")]
+        public static void BuildCloudflareAndUseExisting()
+        {
+            try
+            {
+                var settings = ConfigureRemote(TestTaskPaths.HostedBaseUrl);
+                FreshBuildAndUseExisting(settings);
+                ValidateRemoteOutput();
+                Debug.Log("Cloudflare Addressables content is ready in ServerData. Publish it before testing remote loads.");
+            }
+            catch
+            {
+                RestoreLocalSettings();
+                throw;
+            }
+        }
+
+        public static void BuildCloudflareAndUseExistingFromCommandLine()
+        {
+            RunCommandLine(BuildCloudflareAndUseExisting);
+        }
+
+        [MenuItem("AddressablesSample/Game/Addressables/Use Uploaded Cloudflare Build")]
+        public static void UseUploadedCloudflareBuild()
+        {
+            try
+            {
+                var settings = ConfigureRemote(TestTaskPaths.HostedBaseUrl);
+                EnsurePackedCloudflareBuildExists();
+                SelectPlayModeBuilder<BuildScriptPackedPlayMode>(settings);
+                Debug.Log("Cloudflare + Use Existing Build is active. No content was rebuilt or uploaded.");
+            }
+            catch
+            {
+                RestoreLocalSettings();
+                throw;
+            }
+        }
+
+        public static void UseUploadedCloudflareBuildFromCommandLine()
+        {
+            RunCommandLine(UseUploadedCloudflareBuild);
+        }
+
+        [MenuItem("AddressablesSample/Game/Addressables/Clear Download Cache")]
+        public static void ClearDownloadCache()
+        {
+            if (!Caching.ClearCache())
+            {
+                throw new BuildFailedException(
+                    "Unity could not clear the AssetBundle cache. Stop Play Mode and try again.");
+            }
+
+            Debug.Log("Unity AssetBundle download cache cleared.");
         }
 
         [MenuItem("AddressablesSample/Game/Addressables/Restore Local Defaults")]
@@ -94,6 +154,7 @@ namespace AddressablesSample.Game.Editor
                 {
                     var settings = ConfigureRemote(RequireCommandLineValue("-remoteBaseUrl"));
                     FreshBuildAndUseExisting(settings);
+                    ValidateRemoteOutput();
                 }
                 catch
                 {
@@ -128,10 +189,10 @@ namespace AddressablesSample.Game.Editor
 
             var settings = TestTaskSetup.ConfigureAddressables();
             var profiles = settings.profileSettings;
-            var remoteId = profiles.GetProfileId(TestTaskPaths.RemoteProfile);
+            var remoteId = profiles.GetProfileId(TestTaskPaths.HostedProfile);
             if (string.IsNullOrEmpty(remoteId))
             {
-                throw new BuildFailedException("RemoteTemplate Addressables profile is missing.");
+                throw new BuildFailedException("Cloudflare Addressables profile is missing.");
             }
 
             var normalizedBase = uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
@@ -142,10 +203,12 @@ namespace AddressablesSample.Game.Editor
                 expectedLoadPath);
             if (profiles.GetValueByName(remoteId, TestTaskPaths.RoundLoadPathVariable) != expectedLoadPath)
             {
-                throw new BuildFailedException("Unable to store the RemoteTemplate load path.");
+                throw new BuildFailedException("Unable to store the hosted Addressables load path.");
             }
             settings.activeProfileId = remoteId;
             settings.BuildRemoteCatalog = true;
+            settings.BuildAddressablesWithPlayerBuild =
+                AddressableAssetSettings.PlayerBuildOption.DoNotBuildWithPlayer;
             if (!settings.RemoteCatalogBuildPath.SetVariableByName(settings, TestTaskPaths.RoundBuildPathVariable) ||
                 !settings.RemoteCatalogLoadPath.SetVariableByName(settings, TestTaskPaths.RoundLoadPathVariable))
             {
@@ -154,8 +217,40 @@ namespace AddressablesSample.Game.Editor
 
             EditorUtility.SetDirty(settings);
             AssetDatabase.SaveAssets();
-            Debug.Log("RemoteTemplate configured for " + normalizedBase + ".");
+            Debug.Log(TestTaskPaths.HostedProfile + " configured for " + normalizedBase + ".");
             return settings;
+        }
+
+        private static void EnsurePackedCloudflareBuildExists()
+        {
+            var packedSettingsPath = Path.Combine(Addressables.BuildPath, "settings.json");
+            if (!File.Exists(packedSettingsPath))
+            {
+                throw new BuildFailedException(
+                    "No packed Addressables build exists for the active platform. " +
+                    "Run Build Cloudflare Remote + Use Existing Build first.");
+            }
+
+            var packedSettings = File.ReadAllText(packedSettingsPath);
+            if (packedSettings.IndexOf(TestTaskPaths.HostedBaseUrl, StringComparison.Ordinal) < 0)
+            {
+                throw new BuildFailedException(
+                    "The existing packed data was not built for the configured Cloudflare URL. " +
+                    "Run Build Cloudflare Remote + Use Existing Build first.");
+            }
+        }
+
+        private static void ValidateRemoteOutput()
+        {
+            var remoteFolder = Path.Combine("ServerData", EditorUserBuildSettings.activeBuildTarget.ToString());
+            if (!Directory.Exists(remoteFolder) ||
+                Directory.GetFiles(remoteFolder, "catalog*.json").Length == 0 ||
+                Directory.GetFiles(remoteFolder, "catalog*.hash").Length == 0 ||
+                Directory.GetFiles(remoteFolder, "*.bundle").Length == 0)
+            {
+                throw new BuildFailedException(
+                    "The remote build did not produce a catalog, hash, and bundles under " + remoteFolder + ".");
+            }
         }
 
         private static AddressableAssetSettings RestoreLocalSettings()
