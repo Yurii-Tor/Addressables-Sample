@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -23,6 +24,7 @@ namespace AddressablesSample.Game.Core
         private ITargetView _target;
         private int _roundGeneration;
         private Task _activeRoundTask = Task.CompletedTask;
+        private readonly Stopwatch _roundStopwatch = new Stopwatch();
 
         public GameController(
             IGameConfiguration configuration,
@@ -41,6 +43,15 @@ namespace AddressablesSample.Game.Core
         public GameState State => _state;
         public int Score { get; private set; }
         internal Task ActiveRoundTask => _activeRoundTask;
+
+        /// <summary>
+        /// Monotonic identifier of the newest round request. Every pending load carries the
+        /// generation it was started with, so a stale completion can recognize itself.
+        /// </summary>
+        public int RoundGeneration => _roundGeneration;
+
+        /// <summary>Wall-clock duration of the most recently settled round load.</summary>
+        public double LastRoundLoadMilliseconds { get; private set; }
 
         public async Task InitializeAsync()
         {
@@ -113,6 +124,7 @@ namespace AddressablesSample.Game.Core
                 _state = GameState.LoadingRound;
                 _target.SetInteractionEnabled(false);
                 _hud.SetStatus(GameStatusText.LoadingImage);
+                _roundStopwatch.Restart();
 
                 var runtimeKey = _selector.Next();
                 var load = _loader.StartLoad<Texture2D>(runtimeKey);
@@ -276,6 +288,7 @@ namespace AddressablesSample.Game.Core
         private void ApplySuccessfulRound(IAddressableLoad<Texture2D> load, Texture2D texture)
         {
             _pendingRound = null;
+            CaptureRoundDuration();
 
             try
             {
@@ -295,6 +308,7 @@ namespace AddressablesSample.Game.Core
         private void ApplyFallbackRound(IAddressableLoad<Texture2D> load, Exception loadException)
         {
             _pendingRound = null;
+            CaptureRoundDuration();
             load?.Dispose();
 
             try
@@ -338,6 +352,17 @@ namespace AddressablesSample.Game.Core
         private bool HasValidTarget()
         {
             return _target != null && _target.IsValid;
+        }
+
+        private void CaptureRoundDuration()
+        {
+            if (!_roundStopwatch.IsRunning)
+            {
+                return;
+            }
+
+            _roundStopwatch.Stop();
+            LastRoundLoadMilliseconds = _roundStopwatch.Elapsed.TotalMilliseconds;
         }
 
         private void EnterFatal(string message, Exception exception = null)

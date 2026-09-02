@@ -75,6 +75,43 @@ namespace AddressablesSample.Game.Tests.EditMode
         }
 
         [Test, Timeout(5000)]
+        public async Task RoundTelemetry_AdvancesGenerationOnStartAndRecordsDurationOnSettle()
+        {
+            await _harness.ReachReadyAsync();
+
+            var settledGeneration = _harness.Controller.RoundGeneration;
+            var settledDuration = _harness.Controller.LastRoundLoadMilliseconds;
+            Assert.That(settledGeneration, Is.GreaterThan(0));
+
+            _harness.Controller.HandleSelection(true);
+
+            // Starting a round must advance the generation immediately -- that is what lets a late
+            // completion recognize itself as stale -- but it must not yet report a duration.
+            Assert.That(_harness.Controller.RoundGeneration, Is.EqualTo(settledGeneration + 1));
+            Assert.That(_harness.Controller.LastRoundLoadMilliseconds, Is.EqualTo(settledDuration));
+
+            _harness.Loader.At<Texture2D>(3).CompleteSuccess(_harness.RoundB);
+            await WaitUntilAsync(() => _harness.Controller.State == GameState.Ready);
+
+            Assert.That(_harness.Controller.RoundGeneration, Is.EqualTo(settledGeneration + 1));
+            Assert.That(_harness.Controller.LastRoundLoadMilliseconds, Is.GreaterThan(0d));
+        }
+
+        [Test, Timeout(5000)]
+        public async Task FailedRound_StillRecordsItsDurationAlongsideTheFallback()
+        {
+            await _harness.ReachReadyAsync();
+            _harness.Controller.HandleSelection(true);
+
+            _harness.Loader.At<Texture2D>(3).CompleteFailure();
+            await WaitUntilAsync(() => _harness.Controller.State == GameState.Ready);
+
+            Assert.That(_harness.Hud.Status, Is.EqualTo(GameStatusText.ReadyWithFallback));
+            Assert.That(_harness.Target.Texture, Is.SameAs(_harness.Fallback));
+            Assert.That(_harness.Controller.LastRoundLoadMilliseconds, Is.GreaterThan(0d));
+        }
+
+        [Test, Timeout(5000)]
         public async Task Miss_PreservesScoreTextureSelectorAndRequestCount()
         {
             await _harness.ReachReadyAsync();

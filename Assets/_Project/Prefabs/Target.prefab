@@ -127,4 +127,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: AddressablesSample.Game.Runtime::AddressablesSample.Game.Presentation.TargetView
   _renderer: {fileID: 7168136101339754560}
   _collider: {fileID: 6225050136742451956}
-  _errorFlashDuration: 0.25
+  _errorFlashDuration: 0.4
+  _idleSpinDegreesPerSecond: 22
+  _punchRecoverySpeed: 6

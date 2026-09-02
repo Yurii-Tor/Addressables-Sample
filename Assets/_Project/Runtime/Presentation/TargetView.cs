@@ -16,12 +16,15 @@ namespace AddressablesSample.Game.Presentation
         [SerializeField] private Renderer _renderer;
         [SerializeField] private Collider _collider;
         [SerializeField, Min(0.05f)] private float _errorFlashDuration = 0.25f;
+        [SerializeField] private float _idleSpinDegreesPerSecond = 22f;
+        [SerializeField, Min(1f)] private float _punchRecoverySpeed = 6f;
 
         private MaterialPropertyBlock _propertyBlock;
         private Texture2D _texture;
         private Color _color = Color.white;
         private Color _emission = Color.black;
         private Coroutine _flashCoroutine;
+        private float _punchScale = 1f;
 
         public bool IsValid => this != null && _renderer != null && _collider != null;
         public bool IsFlashing => _flashCoroutine != null;
@@ -38,6 +41,28 @@ namespace AddressablesSample.Game.Presentation
             ApplyPropertyBlock();
         }
 
+        private void Update()
+        {
+            if (_renderer == null || _collider == null || !_renderer.enabled)
+            {
+                return;
+            }
+
+            var delta = Time.deltaTime;
+            transform.Rotate(Vector3.up, _idleSpinDegreesPerSecond * delta, Space.World);
+
+            if (!Mathf.Approximately(_punchScale, 1f))
+            {
+                _punchScale = Mathf.Lerp(_punchScale, 1f, Mathf.Clamp01(_punchRecoverySpeed * delta));
+                if (Mathf.Abs(_punchScale - 1f) < 0.002f)
+                {
+                    _punchScale = 1f;
+                }
+
+                transform.localScale = Vector3.one * _punchScale;
+            }
+        }
+
         public void ApplyTexture(Texture2D texture)
         {
             if (texture == null)
@@ -46,8 +71,14 @@ namespace AddressablesSample.Game.Presentation
             }
 
             EnsureValidReferences();
+            var isReplacement = _texture != null && _texture != texture;
             _texture = texture;
             ApplyPropertyBlock();
+
+            if (isReplacement)
+            {
+                _punchScale = 1.18f;
+            }
         }
 
         public void SetInteractionEnabled(bool enabled)
@@ -83,6 +114,8 @@ namespace AddressablesSample.Game.Presentation
         {
             StopFeedback();
             _texture = null;
+            _punchScale = 1f;
+            transform.localScale = Vector3.one;
 
             if (_renderer != null)
             {
@@ -96,11 +129,18 @@ namespace AddressablesSample.Game.Presentation
             }
         }
 
-        internal void Configure(Renderer targetRenderer, Collider targetCollider, float flashDuration)
+        internal void Configure(
+            Renderer targetRenderer,
+            Collider targetCollider,
+            float flashDuration,
+            float idleSpinDegreesPerSecond,
+            float punchRecoverySpeed)
         {
             _renderer = targetRenderer;
             _collider = targetCollider;
             _errorFlashDuration = Mathf.Max(0.05f, flashDuration);
+            _idleSpinDegreesPerSecond = idleSpinDegreesPerSecond;
+            _punchRecoverySpeed = Mathf.Max(1f, punchRecoverySpeed);
         }
 
         internal void SetPresentationEnabled(bool enabled)

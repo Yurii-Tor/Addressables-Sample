@@ -65,6 +65,16 @@ namespace AddressablesSample.Game.Editor
             RequireAsset<GameObject>(TestTaskPaths.TargetPrefab, errors);
             RequireAsset<SceneAsset>(TestTaskPaths.GameScene, errors);
             var fallback = RequireAsset<Texture2D>(TestTaskPaths.FallbackTexture, errors);
+            var volumeProfile = RequireAsset<VolumeProfile>(TestTaskPaths.VolumeProfile, errors);
+
+            if (volumeProfile != null &&
+                (!volumeProfile.Has<UnityEngine.Rendering.Universal.Bloom>() ||
+                 !volumeProfile.Has<UnityEngine.Rendering.Universal.Vignette>() ||
+                 !volumeProfile.Has<UnityEngine.Rendering.Universal.Tonemapping>() ||
+                 !volumeProfile.Has<UnityEngine.Rendering.Universal.ColorAdjustments>()))
+            {
+                errors.Add("Generated volume profile must contain the four post-processing overrides.");
+            }
 
             if (material != null && (material.shader == null || material.shader.name != "Universal Render Pipeline/Lit"))
             {
@@ -85,6 +95,23 @@ namespace AddressablesSample.Game.Editor
                  material.GetTextureOffset("_BaseMap") != new Vector2(0f, 1f)))
             {
                 errors.Add("Target material must vertically correct the supplied textures.");
+            }
+
+            // The miss feedback drives _EmissionColor through a MaterialPropertyBlock, which is a
+            // no-op unless _EMISSION is compiled into the material. Inspector edits and URP
+            // material upgrades have both silently cleared it, so it is asserted explicitly.
+            if (material != null && !material.IsKeywordEnabled("_EMISSION"))
+            {
+                errors.Add("Target material must keep the _EMISSION keyword enabled for the miss flash.");
+            }
+
+            if (material != null &&
+                (material.IsKeywordEnabled("_ALPHAPREMULTIPLY_ON") ||
+                 Math.Abs(material.GetFloat("_SrcBlend") - (float)BlendMode.SrcAlpha) > 0.001f ||
+                 Math.Abs(material.GetFloat("_DstBlend") - (float)BlendMode.OneMinusSrcAlpha) > 0.001f ||
+                 Math.Abs(material.GetFloat("_ZWrite")) > 0.001f))
+            {
+                errors.Add("Target material must use straight alpha blending with depth writes disabled.");
             }
 
             if (fallback != null &&
@@ -265,9 +292,39 @@ namespace AddressablesSample.Game.Editor
 
                 var systemsRoot = roots.SingleOrDefault(root => root.name == "Game Systems");
                 var hudRoot = roots.SingleOrDefault(root => root.name == "HUD");
-                if (systemsRoot == null || !DirectChildNames(systemsRoot.transform).SequenceEqual(new[] { "Target Spawn" }))
+                if (systemsRoot == null ||
+                    !DirectChildNames(systemsRoot.transform).SequenceEqual(new[] { "Post FX", "Target Spawn" }))
                 {
-                    errors.Add("Game Systems must contain only the Target Spawn child.");
+                    errors.Add("Game Systems must contain only the Post FX and Target Spawn children.");
+                }
+
+                var overlays = Components<DiagnosticsOverlay>(roots);
+                RequireCount(overlays.Length, 1, "Game scene DiagnosticsOverlay count", errors);
+                if (overlays.Length == 1 && bootstrapper.Length == 1)
+                {
+                    AssertObjectReference(
+                        overlays[0], "_bootstrapper", bootstrapper[0], "DiagnosticsOverlay bootstrapper", errors);
+                }
+
+                var volumes = Components<Volume>(roots);
+                RequireCount(volumes.Length, 1, "Game scene Volume count", errors);
+                if (volumes.Length == 1)
+                {
+                    var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(TestTaskPaths.VolumeProfile);
+                    if (!volumes[0].isGlobal || volumes[0].sharedProfile != profile)
+                    {
+                        errors.Add("Generated scene Volume must be global and reference the generated profile.");
+                    }
+                }
+
+                if (cameras.Length == 1)
+                {
+                    var cameraData = cameras[0]
+                        .GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+                    if (cameraData == null || !cameraData.renderPostProcessing)
+                    {
+                        errors.Add("Generated camera must render post-processing.");
+                    }
                 }
 
                 var expectedHudChildren = new[] { "Score", "Status" };

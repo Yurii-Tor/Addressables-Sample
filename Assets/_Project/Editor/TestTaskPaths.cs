@@ -12,12 +12,14 @@ namespace AddressablesSample.Game.Editor
         public const string PrefabsFolder = Root + "/Prefabs";
         public const string ScenesFolder = Root + "/Scenes";
         public const string TexturesFolder = Root + "/Textures";
+        public const string RenderingFolder = Root + "/Rendering";
 
         public const string ConfigAsset = ConfigFolder + "/GameConfig.asset";
         public const string MaterialAsset = MaterialsFolder + "/Target.mat";
         public const string TargetPrefab = PrefabsFolder + "/Target.prefab";
         public const string GameScene = ScenesFolder + "/Game.unity";
         public const string FallbackTexture = TexturesFolder + "/FallbackTexture.asset";
+        public const string VolumeProfile = RenderingFolder + "/GameVolumeProfile.asset";
 
         public const string StartupGroup = "Game-Startup";
         public const string RoundsGroup = "Game-RoundTextures";

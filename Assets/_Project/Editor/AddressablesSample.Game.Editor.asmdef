@@ -8,7 +8,9 @@
     "Unity.ResourceManager",
     "Unity.ScriptableBuildPipeline",
     "Unity.ScriptableBuildPipeline.Editor",
-    "UnityEngine.UI"
+    "UnityEngine.UI",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
   ],
   "includePlatforms": [
     "Editor"

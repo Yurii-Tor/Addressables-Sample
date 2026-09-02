@@ -27,6 +27,11 @@ namespace AddressablesSample.Game.Editor
         private const string RoundRemoteBuildPath = "ServerData/[BuildTarget]";
         private const string RoundRemoteLoadPath = "https://YOUR_HOST/[BuildTarget]";
 
+        // Presentation constants live here so the generated prefab and scene stay deterministic
+        // and the validator can assert them instead of trusting whatever the Inspector holds.
+        private const float IdleSpinDegreesPerSecond = 22f;
+        private const float PunchRecoverySpeed = 6f;
+
         [MenuItem("AddressablesSample/Game/Setup Test Task")]
         public static void Run()
         {
@@ -36,8 +41,9 @@ namespace AddressablesSample.Game.Editor
             var material = CreateOrUpdateMaterial();
             CreateOrUpdateTargetPrefab(material);
             var config = CreateOrUpdateConfig();
+            var volumeProfile = CreateOrUpdateVolumeProfile();
             ConfigureAddressables();
-            CreateOrUpdateScene(config);
+            CreateOrUpdateScene(config, volumeProfile);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(TestTaskPaths.GameScene, true) };
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
@@ -65,6 +71,7 @@ namespace AddressablesSample.Game.Editor
             TestTaskPaths.EnsureFolder(TestTaskPaths.PrefabsFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.ScenesFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.TexturesFolder);
+            TestTaskPaths.EnsureFolder(TestTaskPaths.RenderingFolder);
         }
 
         private static void ConfigureRoundTextureImporters()
@@ -153,7 +160,13 @@ namespace AddressablesSample.Game.Editor
 
             material.shader = shader;
             material.SetColor("_BaseColor", Color.white);
-            material.SetColor("_EmissionColor", Color.black);
+
+            // URP recomputes the _EMISSION keyword from the material's own emission colour on
+            // every import. A black authored colour therefore strips the keyword the miss flash
+            // depends on, silently disabling it. The authored value below stays imperceptible and
+            // is overridden per-renderer by TargetView's MaterialPropertyBlock on the first frame,
+            // so it never renders -- it exists purely to keep the shader variant compiled in.
+            material.SetColor("_EmissionColor", new Color(0.08f, 0f, 0f, 1f));
             material.SetTextureScale("_BaseMap", new Vector2(1f, -1f));
             material.SetTextureOffset("_BaseMap", new Vector2(0f, 1f));
             material.SetFloat("_Smoothness", 0.2f);
@@ -165,6 +178,15 @@ namespace AddressablesSample.Game.Editor
             material.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
             material.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
             material.SetFloat("_ZWrite", 0f);
+
+            // URP's "preserve specular lighting" path rewrites alpha blending into premultiplied
+            // blending and enables _ALPHAPREMULTIPLY_ON. The supplied PNGs carry straight alpha,
+            // so the option is turned off to keep the authored blend.
+            if (material.HasProperty("_BlendModePreserveSpecular"))
+            {
+                material.SetFloat("_BlendModePreserveSpecular", 0f);
+            }
+
             material.SetOverrideTag("RenderType", "Transparent");
             material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
             material.EnableKeyword("_EMISSION");
@@ -172,10 +194,66 @@ namespace AddressablesSample.Game.Editor
             material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
             material.SetShaderPassEnabled("ShadowCaster", false);
             material.renderQueue = (int)RenderQueue.Transparent;
-            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
             EditorUtility.SetDirty(material);
             AssetDatabase.SaveAssetIfDirty(material);
             return material;
+        }
+
+        /// <summary>
+        /// Builds the post-processing profile the demo scene renders through. The overrides are
+        /// created as sub-assets so the profile stays a single deterministic file, and existing
+        /// components are reused so repeated setup runs never duplicate them.
+        /// </summary>
+        private static VolumeProfile CreateOrUpdateVolumeProfile()
+        {
+            var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(TestTaskPaths.VolumeProfile);
+            if (profile == null)
+            {
+                profile = ScriptableObject.CreateInstance<VolumeProfile>();
+                profile.name = "GameVolumeProfile";
+                AssetDatabase.CreateAsset(profile, TestTaskPaths.VolumeProfile);
+            }
+
+            var bloom = GetOrAddVolumeComponent<UnityEngine.Rendering.Universal.Bloom>(profile);
+            bloom.active = true;
+            bloom.threshold.Override(0.9f);
+            bloom.intensity.Override(0.85f);
+            bloom.scatter.Override(0.65f);
+
+            var vignette = GetOrAddVolumeComponent<UnityEngine.Rendering.Universal.Vignette>(profile);
+            vignette.active = true;
+            vignette.intensity.Override(0.32f);
+            vignette.smoothness.Override(0.4f);
+
+            var tonemapping = GetOrAddVolumeComponent<UnityEngine.Rendering.Universal.Tonemapping>(profile);
+            tonemapping.active = true;
+            tonemapping.mode.Override(UnityEngine.Rendering.Universal.TonemappingMode.ACES);
+
+            var colorAdjustments =
+                GetOrAddVolumeComponent<UnityEngine.Rendering.Universal.ColorAdjustments>(profile);
+            colorAdjustments.active = true;
+            colorAdjustments.postExposure.Override(0.15f);
+            colorAdjustments.contrast.Override(12f);
+            colorAdjustments.saturation.Override(6f);
+
+            EditorUtility.SetDirty(profile);
+            AssetDatabase.SaveAssetIfDirty(profile);
+            return profile;
+        }
+
+        private static T GetOrAddVolumeComponent<T>(VolumeProfile profile) where T : VolumeComponent
+        {
+            if (profile.TryGet<T>(out var existing) && existing != null)
+            {
+                return existing;
+            }
+
+            var component = profile.Add<T>(true);
+            component.name = typeof(T).Name;
+            component.hideFlags = HideFlags.HideInHierarchy;
+            AssetDatabase.AddObjectToAsset(component, profile);
+            return component;
         }
 
         private static void CreateOrUpdateTargetPrefab(Material material)
@@ -207,7 +285,7 @@ namespace AddressablesSample.Game.Editor
                 renderer.sharedMaterial = material;
                 collider.center = Vector3.zero;
                 collider.size = Vector3.one;
-                target.Configure(renderer, collider, 0.4f);
+                target.Configure(renderer, collider, 0.4f, IdleSpinDegreesPerSecond, PunchRecoverySpeed);
 
                 if (PrefabUtility.SaveAsPrefabAsset(root, TestTaskPaths.TargetPrefab, out var success) == null || !success)
                 {
@@ -437,7 +515,7 @@ namespace AddressablesSample.Game.Editor
             }
         }
 
-        private static void CreateOrUpdateScene(GameConfig config)
+        private static void CreateOrUpdateScene(GameConfig config, VolumeProfile volumeProfile)
         {
             var sceneExists = AssetDatabase.LoadAssetAtPath<SceneAsset>(TestTaskPaths.GameScene) != null;
             var scene = !sceneExists
@@ -464,16 +542,34 @@ namespace AddressablesSample.Game.Editor
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.04f, 0.06f, 0.1f, 1f);
             camera.fieldOfView = 60f;
+            var cameraData = GetOrAddSingle<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>(cameraObject);
+            cameraData.renderPostProcessing = true;
+            cameraData.antialiasing = UnityEngine.Rendering.Universal.AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+
+            // Ambient light is authored here rather than left at the scene default so the target
+            // reads clearly against the solid background on every machine that opens the project.
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.28f, 0.34f, 0.46f, 1f);
+            RenderSettings.ambientEquatorColor = new Color(0.16f, 0.18f, 0.26f, 1f);
+            RenderSettings.ambientGroundColor = new Color(0.05f, 0.06f, 0.09f, 1f);
 
             var lightObject = GetOrCreateRoot(scene, "Directional Light", typeof(Light));
             lightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
             var light = GetOrAddSingle<Light>(lightObject);
             light.type = LightType.Directional;
-            light.intensity = 1.2f;
+            light.intensity = 1.4f;
+            light.color = new Color(1f, 0.96f, 0.9f, 1f);
 
             var systems = GetOrCreateRoot(scene, "Game Systems");
             var spawnObject = GetOrCreateChild(systems.transform, "Target Spawn");
-            RemoveUnexpectedChildren(systems.transform, new HashSet<string> { "Target Spawn" });
+            var postFxObject = GetOrCreateChild(systems.transform, "Post FX");
+            RemoveUnexpectedChildren(systems.transform, new HashSet<string> { "Target Spawn", "Post FX" });
+
+            var volume = GetOrAddSingle<Volume>(postFxObject);
+            volume.isGlobal = true;
+            volume.priority = 0f;
+            volume.weight = 1f;
+            volume.sharedProfile = volumeProfile;
             var spawn = spawnObject.transform;
             spawn.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             spawn.localScale = Vector3.one;
@@ -511,6 +607,8 @@ namespace AddressablesSample.Game.Editor
             input.Configure(camera, ~0, 100f);
             var bootstrapper = GetOrAddSingle<GameBootstrapper>(systems);
             bootstrapper.Configure(config, hud, input, spawn);
+            var overlay = GetOrAddSingle<DiagnosticsOverlay>(systems);
+            overlay.Configure(bootstrapper, true);
 
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, TestTaskPaths.GameScene))
