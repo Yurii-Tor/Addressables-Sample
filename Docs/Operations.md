@@ -215,6 +215,41 @@ also set **Settings > Pages > Source** to **GitHub Actions**.
 The WebGL player is built uncompressed on purpose: GitHub Pages serves static files without
 the `Content-Encoding` headers that Brotli or gzip Unity builds require.
 
+## 9a. WebGL demo build and hosting
+
+The playable demo is a WebGL player served as a static site. Its Addressables content is
+**local**: the content build writes into the Addressables build path and Unity copies it into
+`StreamingAssets` during the player build. Nothing about the hosting URL is baked in, so the
+same output can be served from any origin and any sub-path without rebuilding.
+
+Requires the **Web Build Support** module for the editor. Install it from Unity Hub
+(Installs > the editor's gear icon > Add modules), or from an **Administrator** PowerShell:
+
+```powershell
+& "C:\Program Files\Unity Hub\Unity Hub.exe" -- --headless install-modules `
+  --version 6000.3.21f1 --module webgl --childModules
+```
+
+Then build straight into the static site directory:
+
+```powershell
+.\Tools\Build-WebGlDemo.ps1 -OutputPath '<demos-site>\public\addressables-selection'
+```
+
+The script switches the project to WebGL, regenerates and validates the project, builds the
+WebGL Addressables content, and produces the player. The first target switch reimports every
+asset and takes a while.
+
+Deploy the static site from its own directory:
+
+```powershell
+npx wrangler deploy
+```
+
+Note that Addressables content is platform specific. The `addressables-sample` deployment
+hosts `StandaloneWindows64` bundles for the desktop build; a WebGL player cannot load them
+and needs its own set, which is why the demo carries its content locally.
+
 ## 10. Architecture and ownership
 
 `GameBootstrapper` is the scene composition root. `GameController` is a plain C# state
