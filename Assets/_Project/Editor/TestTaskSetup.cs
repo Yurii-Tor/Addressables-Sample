@@ -404,6 +404,11 @@ namespace AddressablesSample.Game.Editor
             {
                 throw new BuildFailedException("Unable to map the local Addressables catalog paths.");
             }
+            // Addressables 4.x defaults to a binary catalog. JSON is chosen deliberately: the
+            // catalog is part of what this project demonstrates, and a reviewer can open the
+            // published catalog URL and read the locations, providers and dependencies directly.
+            // The cost is a larger, slower-to-parse catalog, which is irrelevant at twelve bundles.
+            settings.EnableJsonCatalog = true;
             settings.SimulatedLoadDelay = 0.25f;
             settings.buildSettings.LogResourceManagerExceptions = false;
             settings.BuildAddressablesWithPlayerBuild =

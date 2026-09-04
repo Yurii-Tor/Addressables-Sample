@@ -11,6 +11,7 @@ using UnityEditor.AddressableAssets.Settings.GroupSchemas;
 using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AddressableAssets.ResourceProviders;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -610,6 +611,26 @@ namespace AddressablesSample.Game.Editor
             if (Math.Abs(settings.SimulatedLoadDelay - 0.25f) > 0.001f)
             {
                 errors.Add("Addressables simulated load delay must be 0.25 seconds.");
+            }
+
+            // Addressables 4.x defaults to a binary catalog. This project publishes a readable one
+            // on purpose, and Tools/Publish-RemoteContent.ps1 refuses to deploy without it.
+            //
+            // The persisted field is checked instead of settings.EnableJsonCatalog because that
+            // property is unreliable in Addressables 4.0.1: m_CatalogProviderType is a struct whose
+            // field initializer seeds a non-serialized type cache with BinaryCatalogProvider.
+            // Deserialization replaces only the serialized name strings, so the stale cache wins and
+            // the property reports Binary in every freshly loaded session no matter what was saved.
+            // TestTaskSetup assigns the property at setup time, which repairs the cache for the rest
+            // of that session -- which is why every content build in this project runs setup first.
+            var catalogClass = new SerializedObject(settings)
+                .FindProperty("m_CatalogProviderType.m_ClassName");
+            var expectedCatalogClass = typeof(JsonCatalogProvider).FullName;
+            if (catalogClass == null || catalogClass.stringValue != expectedCatalogClass)
+            {
+                errors.Add("Addressables must persist the JSON catalog provider, not the binary " +
+                           "default. Persisted provider: " +
+                           (catalogClass == null ? "missing" : catalogClass.stringValue) + ".");
             }
 
             if (settings.buildSettings.LogResourceManagerExceptions)
