@@ -1,8 +1,14 @@
 name: WebGL demo
 
-# Builds the playable WebGL demo and publishes it to GitHub Pages.
-# Enable Pages first: Settings > Pages > Source: GitHub Actions.
-# Uses the same Unity secrets as tests.yml.
+# Builds the playable WebGL player and publishes it as a workflow artifact.
+#
+# Deployment is intentionally not part of this workflow. The player is served from the
+# separate demos site at https://demos.torproduction.com, which aggregates builds from
+# several projects; that repository owns its own deploy. Download the artifact from a run
+# here, drop it into the site's public/addressables-selection/, and deploy from there --
+# or build locally with Tools/Build-WebGlDemo.ps1, which does the same thing in one step.
+#
+# Required repository secrets: UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD.
 
 on:
   push:
@@ -15,8 +21,6 @@ concurrency:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   build:
@@ -49,18 +53,8 @@ jobs:
           buildsPath: Builds
           allowDirtyBuild: true
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload player
+        uses: actions/upload-artifact@v4
         with:
+          name: webgl-player
           path: Builds/WebGL
-
-  deploy:
-    name: Deploy to GitHub Pages
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

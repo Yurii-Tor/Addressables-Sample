@@ -250,6 +250,37 @@ Note that Addressables content is platform specific. The `addressables-sample` d
 hosts `StandaloneWindows64` bundles for the desktop build; a WebGL player cannot load them
 and needs its own set, which is why the demo carries its content locally.
 
+### The JSON catalog, and an Addressables 4.0.1 bug worth knowing about
+
+The project publishes a **JSON** catalog rather than the binary default, so the catalog can
+be opened and read at its published URL. `TestTaskSetup` sets it, and `ProjectValidation`
+asserts it.
+
+The validator deliberately checks the **persisted** `m_CatalogProviderType.m_ClassName`
+rather than the `AddressableAssetSettings.EnableJsonCatalog` property, because that property
+cannot be trusted in Addressables 4.0.1:
+
+- `m_CatalogProviderType` is a `SerializedType` **struct**, declared with the field
+  initializer `new SerializedType { Value = typeof(BinaryCatalogProvider) }`.
+- That initializer seeds `m_CachedType`, which is **not** a serialized field.
+- Deserialization replaces only the serialized `m_AssemblyName` / `m_ClassName` strings, so
+  the stale cache survives, and the getter returns it in preference to the saved strings.
+
+The practical consequence: in any freshly loaded editor session the property reports
+`BinaryCatalogProvider` even when the asset on disk clearly says `JsonCatalogProvider`.
+Assigning the property repairs the cache for the rest of that session, which is why every
+content build in this project runs **Setup Test Task** first -- and why building content
+without running setup would silently produce a binary catalog.
+
+### State left behind by a content build
+
+An Addressables content build switches the play-mode script to **Use Existing Build**, and
+the content it produces belongs to the active build target. Both the structural validator
+and the PlayMode suite reject that combination in the editor -- correctly, since editor play
+mode cannot load WebGL bundles. `ContinuousIntegration.BuildWebGl` therefore restores
+**Use Asset Database** before returning, so a demo build never leaves the repository in a
+state its own checks fail.
+
 ## 10. Architecture and ownership
 
 `GameBootstrapper` is the scene composition root. `GameController` is a plain C# state

@@ -73,16 +73,28 @@ namespace AddressablesSample.Game.Editor
 
                 Debug.Log($"WebGL demo built into {outputPath} " +
                           $"({report.summary.totalSize / (1024 * 1024)} MB).");
+
+                // The content build switches Addressables to Use Existing Build, and the content
+                // it just produced is WebGL content. Leaving the project that way makes both the
+                // structural validator and the PlayMode suite fail in the editor, so the committed
+                // baseline is restored before returning.
+                AddressablesWorkflow.UseAssetDatabase();
             });
         }
 
         private static void ConfigureWebGlPlayerSettings()
         {
-            // GitHub Pages serves static files without the Content-Encoding headers that Brotli or
-            // gzip Unity builds require, and the decompression fallback costs load time for no
-            // benefit at this size. Uncompressed output just works on any static host.
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
-            PlayerSettings.WebGL.decompressionFallback = false;
+            // Uncompressed output is not an option: the IL2CPP WebAssembly module builds to about
+            // 46 MiB, and static hosts cap individual assets well below that (Cloudflare Workers
+            // and Pages both refuse anything over 25 MiB). Brotli brings it to roughly a fifth.
+            //
+            // The decompression fallback is enabled deliberately. Without it the player only works
+            // when the host returns "Content-Encoding: br", which is a per-host configuration this
+            // build cannot verify; with it, the loader decompresses in JavaScript whenever the
+            // bytes arrive still compressed. That makes the same output correct on any static
+            // host, which is the property that matters for a portfolio demo.
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
+            PlayerSettings.WebGL.decompressionFallback = true;
             PlayerSettings.WebGL.dataCaching = true;
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.None;
             PlayerSettings.runInBackground = true;
