@@ -13,6 +13,13 @@ name: WebGL demo
 on:
   push:
     branches: [main]
+    # README, documentation, media, and workflow-only changes do not need a player build.
+    # Use workflow_dispatch for an explicit build after changing the workflow itself.
+    paths-ignore:
+      - '**/*.md'
+      - 'Docs/**'
+      - 'LICENSE'
+      - '.github/**'
   workflow_dispatch:
 
 concurrency:

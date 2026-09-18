@@ -42,6 +42,8 @@ Docs/ImplementationPlan.md with progress, decisions, validation, and blockers.
 
 # Git
 
+- Start every substantive change from a dedicated task branch (normally `codex/<short-purpose>`); do not develop directly on `main`.
+- Merge into `main` only for changes that affect the playable game, generated build output, or required repository/CI configuration. Documentation, README, media, and other showcase-only changes stay on their task branch unless the owner explicitly asks to merge them.
 - Preserve unrelated user changes.
 - Never use git add .
 - Stage only files belonging to the current milestone.
