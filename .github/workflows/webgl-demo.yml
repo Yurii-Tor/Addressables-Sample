@@ -1,0 +1,60 @@
+name: WebGL demo
+
+# Builds the playable WebGL player and publishes it as a workflow artifact.
+#
+# Deployment is intentionally not part of this workflow. The player is served from the
+# separate demos site at https://demos.torproduction.com, which aggregates builds from
+# several projects; that repository owns its own deploy. Download the artifact from a run
+# here, drop it into the site's public/addressables-selection/, and deploy from there --
+# or build locally with Tools/Build-WebGlDemo.ps1, which does the same thing in one step.
+#
+# Required repository secrets: UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: webgl-demo
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build WebGL player
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-WebGL-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-WebGL-
+            Library-
+
+      # The project deliberately does not build Addressables during a player build, so the
+      # custom build method builds the content explicitly before producing the player.
+      - name: Build
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 6000.3.21f1
+          targetPlatform: WebGL
+          buildMethod: AddressablesSample.Game.Editor.ContinuousIntegration.BuildWebGl
+          buildsPath: Builds
+          allowDirtyBuild: true
+
+      - name: Upload player
+        uses: actions/upload-artifact@v4
+        with:
+          name: webgl-player
+          path: Builds/WebGL

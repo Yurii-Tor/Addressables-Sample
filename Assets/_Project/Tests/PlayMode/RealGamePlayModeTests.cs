@@ -69,8 +69,9 @@ namespace AddressablesSample.Game.Tests.PlayMode
             Assert.That(target.TargetCollider.enabled, Is.True);
             Assert.That(block.GetTexture(Shader.PropertyToID("_BaseMap")), Is.SameAs(firstTexture));
             Assert.That(block.GetVector(Shader.PropertyToID("_BaseMap_ST")),
-                Is.EqualTo(new Vector4(1f, -1f, 0f, 1f)));
-            Assert.That(renderer.sharedMaterial.GetFloat("_Surface"), Is.EqualTo(1f).Within(0.001f));
+                Is.EqualTo(new Vector4(1f, 1f, 0f, 0f)));
+            Assert.That(renderer.sharedMaterial.shader.name, Is.EqualTo("AddressablesSample/Target Surface"));
+            Assert.That(renderer.sharedMaterial.GetTag("RenderType", false), Is.EqualTo("Opaque"));
 
             var selectionObserved = false;
             var observedHit = false;

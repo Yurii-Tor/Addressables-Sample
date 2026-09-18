@@ -14,6 +14,8 @@ The PDF and Docs/Requirements.md are the source of truth.
 - Never use WaitForCompletion, Task.Wait, .Result, or synchronous busy waiting.
 - Use MaterialPropertyBlock instead of instantiating materials.
 - Use async void only for Unity lifecycle or event boundaries.
+- Diagnostics and overlays observe the controller by polling. Never add presentation
+  events, callbacks, or references to the controller for their benefit.
 
 # Unity assets
 
@@ -21,6 +23,8 @@ The PDF and Docs/Requirements.md are the source of truth.
 - Create idempotent Editor tooling for generated project content.
 - Re-running the setup command must not duplicate objects, groups, labels, or assets.
 - Do not modify unrelated ProjectSettings or package versions.
+- URP recomputes material keywords on import. Author the inputs URP derives them from,
+  never the keywords directly, and assert the result in ProjectValidation.
 
 # Planning
 
@@ -49,8 +53,11 @@ Docs/ImplementationPlan.md with progress, decisions, validation, and blockers.
 
 Before finishing:
 - run EditMode and PlayMode tests;
-- verify Addressables Simulate Groups and Use Existing Build workflows;
+- verify the Addressables Use Asset Database and Use Existing Build workflows
+  (Simulate Groups no longer exists in Addressables 4.0.1);
+- run ContinuousIntegration.VerifyGeneratedProject for setup idempotency and validation;
 - audit every load and release path;
 - verify cancellation prevents stale texture application;
-- update README with exact setup and testing instructions;
+- update Docs/Operations.md with exact setup and testing instructions, and keep the
+  README a showcase rather than a manual;
 - report anything that could not be validated in Unity.

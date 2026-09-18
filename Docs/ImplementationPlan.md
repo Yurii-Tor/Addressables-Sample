@@ -348,7 +348,7 @@ Camera is centered on a spawn point at the origin; cube framing is deterministic
 •
 Target.prefab contains a cube mesh, MeshRenderer, shared Target.mat, BoxCollider, and TargetView.
 •
-Target.mat uses Universal Render Pipeline/Lit; all runtime texture/color changes use MaterialPropertyBlock, never renderer.material.
+Target.mat uses the URP-compatible AddressablesSample/Target Surface shader; it composites transparent round images over a light opaque cube background, while all runtime texture/color changes use MaterialPropertyBlock, never renderer.material.
 •
 Generated fallback is a conspicuous magenta/black checkerboard Texture2D asset distinct from all rounds.
 •
@@ -682,6 +682,8 @@ Progress
 2026-08-12 — Milestone 4, “test: cover gameplay and Addressables workflows,” completed. PlayMode coverage now drives the real generated scene with virtual mouse and touch input, verifies miss feedback and MaterialPropertyBlock behavior, exercises a real missing-key fallback, proves stale-result invalidation and destruction-time cleanup with delayed operations, and asserts zero task-owned Addressables owners after scene unload. Editor workflow automation selects Use Asset Database, performs a clean deterministic content build, selects Use Existing Build, restores Local defaults, and supports guarded optional HTTPS configuration/building.
 •
 2026-08-12 — Milestone 5, “docs: add setup, testing, and submission guide,” completed. README.md documents exact versions, setup, controls, local Addressables workflows, validation commands, ownership and cancellation semantics, guarded optional HTTPS delivery, validation limits, and the supplied icon provenance boundary. The complete final validation matrix passed before the focused documentation commit.
+•
+2026-09-18 — Visual correction completed. The target now composites transparent round images over a light opaque cube surface, and its generated mesh maps every vertical face upright. Runtime texture changes still use one MaterialPropertyBlock and the prefab still has one renderer and collider.
 
 Decisions
 
@@ -705,6 +707,8 @@ Decisions
 2026-08-12 — PlayMode tests use an embedded InputTestFixture so the generated scene and its runtime InputActions are unloaded before the isolated Input System is restored. Delayed fake owners deliberately allow a completion after disposal, providing a stronger stale-continuation proof than a fake that resolves cancellation immediately.
 •
 2026-08-12 — The initial real-loader PlayMode run exposed a Unity 6 lifecycle constraint: MaterialPropertyBlock.SetTexture rejects a null value during TargetView.Awake. TargetView now hides interaction/presentation in Awake and adds the texture override only after a non-null retained fallback or round texture is applied; this preserves the approved factory/ownership sequence.
+•
+2026-09-18 — The supplied PNGs contain transparent pixels whose RGB is black. Keeping alpha blending made the cube disappear into the dark scene, while merely switching URP/Lit to opaque would expose those black texels. A small URP-compatible shader therefore composites the PNG over a generated light background and outputs opaque alpha. A generated 24-vertex cube replaces the built-in cube because per-face world-up UVs cannot be expressed by one global material transform.
 
 Validation
 
@@ -720,6 +724,8 @@ Validation
 2026-08-12 — Milestone 4 Use Asset Database validation passed 4/4 PlayMode tests in Logs/PlayMode-AssetDatabase.xml. Logs/AddressablesBuild.log records a clean schema-driven Local build with 24 catalog locations. The same 4/4 PlayMode tests passed against Use Existing Build in Logs/PlayMode-ExistingBuild.xml. Logs/RestoreLocal.log restored Local + Use Asset Database, and Logs/Milestone4-Validation.log confirmed the committed local baseline. The complete EditMode regression suite passed 35/35 in Logs/Milestone4-EditMode.xml. Targeted scans found no unexpected compiler/test error, unhandled exception, invalid/double handle, owner leak, or missing catalog/bundle message; the one missing-round warning is expected and asserted by the fallback test.
 •
 2026-08-12 — Final Milestone 5 validation passed. Final-Setup-1.log and Final-Setup-2.log completed successfully; an additional awaited idempotency pass compared SHA-256 snapshots of 141 task-owned files and changed zero. Final-Validation.log and Final-PostRestore-Validation.log passed. Final-EditMode.xml passed 35/35 with zero failures/skips. Final-PlayMode-AssetDatabase.xml passed 4/4, Final-AddressablesBuild.log produced 24 catalog locations, and Final-PlayMode-ExistingBuild.xml passed 4/4. Final-RestoreLocal.log restored Local + Use Asset Database. Source/ownership, unexpected-log, credential, build-output, diff, and staging audits passed; git lfs status was clean and git lfs fsck passed. The one invalid-key exception text appears only inside the expected and asserted controlled fallback warning.
+•
+2026-09-18 — Visual correction validation passed. ContinuousIntegration.VerifyGeneratedProject completed two setup passes and structural validation. EditMode passed 38/38; PlayMode passed 4/4 in Use Asset Database and 4/4 against a fresh Use Existing Build. The local Addressables build produced 24 catalog locations, Local + Use Asset Database was restored, and final ProjectValidation passed.
 
 Blockers
 

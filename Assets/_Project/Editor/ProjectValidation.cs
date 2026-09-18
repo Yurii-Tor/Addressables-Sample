@@ -11,6 +11,7 @@ using UnityEditor.AddressableAssets.Settings.GroupSchemas;
 using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AddressableAssets.ResourceProviders;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -62,30 +63,46 @@ namespace AddressablesSample.Game.Editor
         {
             RequireAsset<GameConfig>(TestTaskPaths.ConfigAsset, errors);
             var material = RequireAsset<Material>(TestTaskPaths.MaterialAsset, errors);
+            var targetMesh = RequireAsset<Mesh>(TestTaskPaths.TargetMesh, errors);
             RequireAsset<GameObject>(TestTaskPaths.TargetPrefab, errors);
             RequireAsset<SceneAsset>(TestTaskPaths.GameScene, errors);
             var fallback = RequireAsset<Texture2D>(TestTaskPaths.FallbackTexture, errors);
+            var volumeProfile = RequireAsset<VolumeProfile>(TestTaskPaths.VolumeProfile, errors);
 
-            if (material != null && (material.shader == null || material.shader.name != "Universal Render Pipeline/Lit"))
+            if (volumeProfile != null &&
+                (!volumeProfile.Has<UnityEngine.Rendering.Universal.Bloom>() ||
+                 !volumeProfile.Has<UnityEngine.Rendering.Universal.Vignette>() ||
+                 !volumeProfile.Has<UnityEngine.Rendering.Universal.Tonemapping>() ||
+                 !volumeProfile.Has<UnityEngine.Rendering.Universal.ColorAdjustments>()))
             {
-                errors.Add("Target material must use Universal Render Pipeline/Lit.");
+                errors.Add("Generated volume profile must contain the four post-processing overrides.");
+            }
+
+            if (material != null && (material.shader == null || material.shader.name != "AddressablesSample/Target Surface"))
+            {
+                errors.Add("Target material must use the AddressablesSample target surface shader.");
             }
 
             if (material != null &&
-                (Math.Abs(material.GetFloat("_Surface") - 1f) > 0.001f ||
-                 material.GetTag("RenderType", false) != "Transparent" ||
-                 material.renderQueue != (int)RenderQueue.Transparent ||
-                 !material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT")))
+                (material.GetTag("RenderType", false) != "Opaque" ||
+                 material.renderQueue != (int)RenderQueue.Geometry))
             {
-                errors.Add("Target material must use alpha-blended URP transparency.");
+                errors.Add("Target material must render as opaque geometry.");
             }
 
             if (material != null &&
-                (material.GetTextureScale("_BaseMap") != new Vector2(1f, -1f) ||
-                 material.GetTextureOffset("_BaseMap") != new Vector2(0f, 1f)))
+                (material.GetTextureScale("_BaseMap") != Vector2.one ||
+                 material.GetTextureOffset("_BaseMap") != Vector2.zero))
             {
-                errors.Add("Target material must vertically correct the supplied textures.");
+                errors.Add("Target material must preserve the generated cube UVs.");
             }
+
+            if (material != null && material.GetColor("_BackgroundColor") != new Color(0.78f, 0.86f, 0.96f, 1f))
+            {
+                errors.Add("Target material must use the light cube background colour.");
+            }
+
+            ValidateTargetMesh(targetMesh, errors);
 
             if (fallback != null &&
                 (fallback.width != 8 || fallback.height != 8 ||
@@ -216,10 +233,46 @@ namespace AddressablesSample.Game.Editor
                 {
                     errors.Add("Target prefab cube mesh is missing.");
                 }
+                else if (filters.Length == 1 &&
+                         AssetDatabase.GetAssetPath(filters[0].sharedMesh) != TestTaskPaths.TargetMesh)
+                {
+                    errors.Add("Target prefab must use the generated upright-UV cube mesh.");
+                }
             }
             finally
             {
                 PrefabUtility.UnloadPrefabContents(root);
+            }
+        }
+
+        private static void ValidateTargetMesh(Mesh mesh, ICollection<string> errors)
+        {
+            if (mesh == null)
+            {
+                return;
+            }
+
+            var vertices = mesh.vertices;
+            var uvs = mesh.uv;
+            if (vertices.Length != 24 || uvs.Length != 24 || mesh.triangles.Length != 36)
+            {
+                errors.Add("Target cube mesh must contain six independent four-vertex faces.");
+                return;
+            }
+
+            for (var face = 0; face < 4; face++)
+            {
+                var first = face * 4;
+                if (uvs[first] != new Vector2(0f, 0f) ||
+                    uvs[first + 1] != new Vector2(1f, 0f) ||
+                    uvs[first + 2] != new Vector2(1f, 1f) ||
+                    uvs[first + 3] != new Vector2(0f, 1f) ||
+                    vertices[first].y >= vertices[first + 3].y ||
+                    vertices[first + 1].y >= vertices[first + 2].y)
+                {
+                    errors.Add("Every vertical target face must map the image upright.");
+                    return;
+                }
             }
         }
 
@@ -265,9 +318,39 @@ namespace AddressablesSample.Game.Editor
 
                 var systemsRoot = roots.SingleOrDefault(root => root.name == "Game Systems");
                 var hudRoot = roots.SingleOrDefault(root => root.name == "HUD");
-                if (systemsRoot == null || !DirectChildNames(systemsRoot.transform).SequenceEqual(new[] { "Target Spawn" }))
+                if (systemsRoot == null ||
+                    !DirectChildNames(systemsRoot.transform).SequenceEqual(new[] { "Post FX", "Target Spawn" }))
                 {
-                    errors.Add("Game Systems must contain only the Target Spawn child.");
+                    errors.Add("Game Systems must contain only the Post FX and Target Spawn children.");
+                }
+
+                var overlays = Components<DiagnosticsOverlay>(roots);
+                RequireCount(overlays.Length, 1, "Game scene DiagnosticsOverlay count", errors);
+                if (overlays.Length == 1 && bootstrapper.Length == 1)
+                {
+                    AssertObjectReference(
+                        overlays[0], "_bootstrapper", bootstrapper[0], "DiagnosticsOverlay bootstrapper", errors);
+                }
+
+                var volumes = Components<Volume>(roots);
+                RequireCount(volumes.Length, 1, "Game scene Volume count", errors);
+                if (volumes.Length == 1)
+                {
+                    var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(TestTaskPaths.VolumeProfile);
+                    if (!volumes[0].isGlobal || volumes[0].sharedProfile != profile)
+                    {
+                        errors.Add("Generated scene Volume must be global and reference the generated profile.");
+                    }
+                }
+
+                if (cameras.Length == 1)
+                {
+                    var cameraData = cameras[0]
+                        .GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+                    if (cameraData == null || !cameraData.renderPostProcessing)
+                    {
+                        errors.Add("Generated camera must render post-processing.");
+                    }
                 }
 
                 var expectedHudChildren = new[] { "Score", "Status" };
@@ -553,6 +636,26 @@ namespace AddressablesSample.Game.Editor
             if (Math.Abs(settings.SimulatedLoadDelay - 0.25f) > 0.001f)
             {
                 errors.Add("Addressables simulated load delay must be 0.25 seconds.");
+            }
+
+            // Addressables 4.x defaults to a binary catalog. This project publishes a readable one
+            // on purpose, and Tools/Publish-RemoteContent.ps1 refuses to deploy without it.
+            //
+            // The persisted field is checked instead of settings.EnableJsonCatalog because that
+            // property is unreliable in Addressables 4.0.1: m_CatalogProviderType is a struct whose
+            // field initializer seeds a non-serialized type cache with BinaryCatalogProvider.
+            // Deserialization replaces only the serialized name strings, so the stale cache wins and
+            // the property reports Binary in every freshly loaded session no matter what was saved.
+            // TestTaskSetup assigns the property at setup time, which repairs the cache for the rest
+            // of that session -- which is why every content build in this project runs setup first.
+            var catalogClass = new SerializedObject(settings)
+                .FindProperty("m_CatalogProviderType.m_ClassName");
+            var expectedCatalogClass = typeof(JsonCatalogProvider).FullName;
+            if (catalogClass == null || catalogClass.stringValue != expectedCatalogClass)
+            {
+                errors.Add("Addressables must persist the JSON catalog provider, not the binary " +
+                           "default. Persisted provider: " +
+                           (catalogClass == null ? "missing" : catalogClass.stringValue) + ".");
             }
 
             if (settings.buildSettings.LogResourceManagerExceptions)

@@ -27,17 +27,24 @@ namespace AddressablesSample.Game.Editor
         private const string RoundRemoteBuildPath = "ServerData/[BuildTarget]";
         private const string RoundRemoteLoadPath = "https://YOUR_HOST/[BuildTarget]";
 
+        // Presentation constants live here so the generated prefab and scene stay deterministic
+        // and the validator can assert them instead of trusting whatever the Inspector holds.
+        private const float IdleSpinDegreesPerSecond = 22f;
+        private const float PunchRecoverySpeed = 6f;
+
         [MenuItem("AddressablesSample/Game/Setup Test Task")]
         public static void Run()
         {
             EnsureFolders();
             ConfigureRoundTextureImporters();
             var fallback = CreateOrUpdateFallback();
+            var targetMesh = CreateOrUpdateTargetMesh();
             var material = CreateOrUpdateMaterial();
-            CreateOrUpdateTargetPrefab(material);
+            CreateOrUpdateTargetPrefab(targetMesh, material);
             var config = CreateOrUpdateConfig();
+            var volumeProfile = CreateOrUpdateVolumeProfile();
             ConfigureAddressables();
-            CreateOrUpdateScene(config);
+            CreateOrUpdateScene(config, volumeProfile);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(TestTaskPaths.GameScene, true) };
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
@@ -62,9 +69,11 @@ namespace AddressablesSample.Game.Editor
         {
             TestTaskPaths.EnsureFolder(TestTaskPaths.ConfigFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.MaterialsFolder);
+            TestTaskPaths.EnsureFolder(TestTaskPaths.MeshesFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.PrefabsFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.ScenesFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.TexturesFolder);
+            TestTaskPaths.EnsureFolder(TestTaskPaths.RenderingFolder);
         }
 
         private static void ConfigureRoundTextureImporters()
@@ -136,12 +145,92 @@ namespace AddressablesSample.Game.Editor
             return texture;
         }
 
+        private static Mesh CreateOrUpdateTargetMesh()
+        {
+            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(TestTaskPaths.TargetMesh);
+            if (mesh == null)
+            {
+                mesh = new Mesh { name = "TargetCube" };
+                AssetDatabase.CreateAsset(mesh, TestTaskPaths.TargetMesh);
+            }
+
+            var vertices = new List<Vector3>(24);
+            var normals = new List<Vector3>(24);
+            var uvs = new List<Vector2>(24);
+            var triangles = new List<int>(36);
+
+            // Every face is authored as bottom-left, bottom-right, top-right, top-left
+            // when viewed from outside. The four vertical faces therefore share world-up UVs
+            // instead of inheriting the inconsistent rotations of Unity's built-in cube.
+            AddFace(vertices, normals, uvs, triangles, Vector3.back,
+                new Vector3(-0.5f, -0.5f, -0.5f), new Vector3(0.5f, -0.5f, -0.5f),
+                new Vector3(0.5f, 0.5f, -0.5f), new Vector3(-0.5f, 0.5f, -0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.forward,
+                new Vector3(0.5f, -0.5f, 0.5f), new Vector3(-0.5f, -0.5f, 0.5f),
+                new Vector3(-0.5f, 0.5f, 0.5f), new Vector3(0.5f, 0.5f, 0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.left,
+                new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(-0.5f, -0.5f, -0.5f),
+                new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(-0.5f, 0.5f, 0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.right,
+                new Vector3(0.5f, -0.5f, -0.5f), new Vector3(0.5f, -0.5f, 0.5f),
+                new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0.5f, 0.5f, -0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.up,
+                new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(0.5f, 0.5f, -0.5f),
+                new Vector3(0.5f, 0.5f, 0.5f), new Vector3(-0.5f, 0.5f, 0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.down,
+                new Vector3(0.5f, -0.5f, -0.5f), new Vector3(-0.5f, -0.5f, -0.5f),
+                new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(0.5f, -0.5f, 0.5f));
+
+            mesh.Clear();
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateBounds();
+            EditorUtility.SetDirty(mesh);
+            AssetDatabase.SaveAssetIfDirty(mesh);
+            return mesh;
+        }
+
+        private static void AddFace(
+            ICollection<Vector3> vertices,
+            ICollection<Vector3> normals,
+            ICollection<Vector2> uvs,
+            ICollection<int> triangles,
+            Vector3 normal,
+            Vector3 bottomLeft,
+            Vector3 bottomRight,
+            Vector3 topRight,
+            Vector3 topLeft)
+        {
+            var first = vertices.Count;
+            vertices.Add(bottomLeft);
+            vertices.Add(bottomRight);
+            vertices.Add(topRight);
+            vertices.Add(topLeft);
+            for (var index = 0; index < 4; index++)
+            {
+                normals.Add(normal);
+            }
+
+            uvs.Add(new Vector2(0f, 0f));
+            uvs.Add(new Vector2(1f, 0f));
+            uvs.Add(new Vector2(1f, 1f));
+            uvs.Add(new Vector2(0f, 1f));
+            triangles.Add(first);
+            triangles.Add(first + 2);
+            triangles.Add(first + 1);
+            triangles.Add(first);
+            triangles.Add(first + 3);
+            triangles.Add(first + 2);
+        }
+
         private static Material CreateOrUpdateMaterial()
         {
-            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            var shader = Shader.Find("AddressablesSample/Target Surface");
             if (shader == null)
             {
-                throw new BuildFailedException("The URP/Lit shader is unavailable.");
+                throw new BuildFailedException("The AddressablesSample target shader is unavailable.");
             }
 
             var material = AssetDatabase.LoadAssetAtPath<Material>(TestTaskPaths.MaterialAsset);
@@ -152,33 +241,81 @@ namespace AddressablesSample.Game.Editor
             }
 
             material.shader = shader;
+            foreach (var keyword in material.shaderKeywords.ToArray())
+            {
+                material.DisableKeyword(keyword);
+            }
+
             material.SetColor("_BaseColor", Color.white);
-            material.SetColor("_EmissionColor", Color.black);
-            material.SetTextureScale("_BaseMap", new Vector2(1f, -1f));
-            material.SetTextureOffset("_BaseMap", new Vector2(0f, 1f));
-            material.SetFloat("_Smoothness", 0.2f);
-            material.SetFloat("_Surface", 1f);
-            material.SetFloat("_Blend", 0f);
-            material.SetFloat("_AlphaClip", 0f);
-            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
-            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
-            material.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
-            material.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
-            material.SetFloat("_ZWrite", 0f);
-            material.SetOverrideTag("RenderType", "Transparent");
-            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            material.EnableKeyword("_EMISSION");
-            material.DisableKeyword("_ALPHATEST_ON");
-            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            material.SetShaderPassEnabled("ShadowCaster", false);
-            material.renderQueue = (int)RenderQueue.Transparent;
+            material.SetColor("_BackgroundColor", new Color(0.78f, 0.86f, 0.96f, 1f));
+            material.SetColor("_EmissionColor", new Color(0.08f, 0f, 0f, 1f));
+            material.SetTextureScale("_BaseMap", Vector2.one);
+            material.SetTextureOffset("_BaseMap", Vector2.zero);
+            material.SetOverrideTag("RenderType", "Opaque");
+            material.renderQueue = (int)RenderQueue.Geometry;
             material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
             EditorUtility.SetDirty(material);
             AssetDatabase.SaveAssetIfDirty(material);
             return material;
         }
 
-        private static void CreateOrUpdateTargetPrefab(Material material)
+        /// <summary>
+        /// Builds the post-processing profile the demo scene renders through. The overrides are
+        /// created as sub-assets so the profile stays a single deterministic file, and existing
+        /// components are reused so repeated setup runs never duplicate them.
+        /// </summary>
+        private static VolumeProfile CreateOrUpdateVolumeProfile()
+        {
+            var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(TestTaskPaths.VolumeProfile);
+            if (profile == null)
+            {
+                profile = ScriptableObject.CreateInstance<VolumeProfile>();
+                profile.name = "GameVolumeProfile";
+                AssetDatabase.CreateAsset(profile, TestTaskPaths.VolumeProfile);
+            }
+
+            var bloom = GetOrAddVolumeComponent<UnityEngine.Rendering.Universal.Bloom>(profile);
+            bloom.active = true;
+            bloom.threshold.Override(0.9f);
+            bloom.intensity.Override(0.85f);
+            bloom.scatter.Override(0.65f);
+
+            var vignette = GetOrAddVolumeComponent<UnityEngine.Rendering.Universal.Vignette>(profile);
+            vignette.active = true;
+            vignette.intensity.Override(0.32f);
+            vignette.smoothness.Override(0.4f);
+
+            var tonemapping = GetOrAddVolumeComponent<UnityEngine.Rendering.Universal.Tonemapping>(profile);
+            tonemapping.active = true;
+            tonemapping.mode.Override(UnityEngine.Rendering.Universal.TonemappingMode.ACES);
+
+            var colorAdjustments =
+                GetOrAddVolumeComponent<UnityEngine.Rendering.Universal.ColorAdjustments>(profile);
+            colorAdjustments.active = true;
+            colorAdjustments.postExposure.Override(0.15f);
+            colorAdjustments.contrast.Override(12f);
+            colorAdjustments.saturation.Override(6f);
+
+            EditorUtility.SetDirty(profile);
+            AssetDatabase.SaveAssetIfDirty(profile);
+            return profile;
+        }
+
+        private static T GetOrAddVolumeComponent<T>(VolumeProfile profile) where T : VolumeComponent
+        {
+            if (profile.TryGet<T>(out var existing) && existing != null)
+            {
+                return existing;
+            }
+
+            var component = profile.Add<T>(true);
+            component.name = typeof(T).Name;
+            component.hideFlags = HideFlags.HideInHierarchy;
+            AssetDatabase.AddObjectToAsset(component, profile);
+            return component;
+        }
+
+        private static void CreateOrUpdateTargetPrefab(Mesh targetMesh, Material material)
         {
             var prefabExists = AssetDatabase.LoadAssetAtPath<GameObject>(TestTaskPaths.TargetPrefab) != null;
             var root = prefabExists
@@ -197,17 +334,11 @@ namespace AddressablesSample.Game.Editor
                 var collider = GetOrAddSingle<BoxCollider>(root);
                 var target = GetOrAddSingle<TargetView>(root);
 
-                var cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
-                if (cube == null)
-                {
-                    throw new BuildFailedException("Unity's built-in cube mesh is unavailable.");
-                }
-
-                meshFilter.sharedMesh = cube;
+                meshFilter.sharedMesh = targetMesh;
                 renderer.sharedMaterial = material;
                 collider.center = Vector3.zero;
                 collider.size = Vector3.one;
-                target.Configure(renderer, collider, 0.4f);
+                target.Configure(renderer, collider, 0.4f, IdleSpinDegreesPerSecond, PunchRecoverySpeed);
 
                 if (PrefabUtility.SaveAsPrefabAsset(root, TestTaskPaths.TargetPrefab, out var success) == null || !success)
                 {
@@ -326,6 +457,11 @@ namespace AddressablesSample.Game.Editor
             {
                 throw new BuildFailedException("Unable to map the local Addressables catalog paths.");
             }
+            // Addressables 4.x defaults to a binary catalog. JSON is chosen deliberately: the
+            // catalog is part of what this project demonstrates, and a reviewer can open the
+            // published catalog URL and read the locations, providers and dependencies directly.
+            // The cost is a larger, slower-to-parse catalog, which is irrelevant at twelve bundles.
+            settings.EnableJsonCatalog = true;
             settings.SimulatedLoadDelay = 0.25f;
             settings.buildSettings.LogResourceManagerExceptions = false;
             settings.BuildAddressablesWithPlayerBuild =
@@ -437,7 +573,7 @@ namespace AddressablesSample.Game.Editor
             }
         }
 
-        private static void CreateOrUpdateScene(GameConfig config)
+        private static void CreateOrUpdateScene(GameConfig config, VolumeProfile volumeProfile)
         {
             var sceneExists = AssetDatabase.LoadAssetAtPath<SceneAsset>(TestTaskPaths.GameScene) != null;
             var scene = !sceneExists
@@ -464,16 +600,34 @@ namespace AddressablesSample.Game.Editor
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.04f, 0.06f, 0.1f, 1f);
             camera.fieldOfView = 60f;
+            var cameraData = GetOrAddSingle<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>(cameraObject);
+            cameraData.renderPostProcessing = true;
+            cameraData.antialiasing = UnityEngine.Rendering.Universal.AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+
+            // Ambient light is authored here rather than left at the scene default so the target
+            // reads clearly against the solid background on every machine that opens the project.
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.28f, 0.34f, 0.46f, 1f);
+            RenderSettings.ambientEquatorColor = new Color(0.16f, 0.18f, 0.26f, 1f);
+            RenderSettings.ambientGroundColor = new Color(0.05f, 0.06f, 0.09f, 1f);
 
             var lightObject = GetOrCreateRoot(scene, "Directional Light", typeof(Light));
             lightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
             var light = GetOrAddSingle<Light>(lightObject);
             light.type = LightType.Directional;
-            light.intensity = 1.2f;
+            light.intensity = 1.4f;
+            light.color = new Color(1f, 0.96f, 0.9f, 1f);
 
             var systems = GetOrCreateRoot(scene, "Game Systems");
             var spawnObject = GetOrCreateChild(systems.transform, "Target Spawn");
-            RemoveUnexpectedChildren(systems.transform, new HashSet<string> { "Target Spawn" });
+            var postFxObject = GetOrCreateChild(systems.transform, "Post FX");
+            RemoveUnexpectedChildren(systems.transform, new HashSet<string> { "Target Spawn", "Post FX" });
+
+            var volume = GetOrAddSingle<Volume>(postFxObject);
+            volume.isGlobal = true;
+            volume.priority = 0f;
+            volume.weight = 1f;
+            volume.sharedProfile = volumeProfile;
             var spawn = spawnObject.transform;
             spawn.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             spawn.localScale = Vector3.one;
@@ -511,6 +665,8 @@ namespace AddressablesSample.Game.Editor
             input.Configure(camera, ~0, 100f);
             var bootstrapper = GetOrAddSingle<GameBootstrapper>(systems);
             bootstrapper.Configure(config, hud, input, spawn);
+            var overlay = GetOrAddSingle<DiagnosticsOverlay>(systems);
+            overlay.Configure(bootstrapper, true);
 
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, TestTaskPaths.GameScene))
