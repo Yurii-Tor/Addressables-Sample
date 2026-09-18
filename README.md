@@ -16,15 +16,10 @@ cancellation, and teardown.
 
 **▶ [Play it in your browser](https://demos.torproduction.com/addressables-selection/)**
 
-<!--
-  Record Docs/media/demo.gif and add it here:
+🎥 **[Watch the 15-second gameplay recording](Docs/media/demo.mp4)**
 
-  ![Gameplay](Docs/media/demo.gif)
-
-  Suggested capture: 800x450, ~10 seconds, covering startup, a hit with the score
-  increment, the "Loading image..." state, the new texture arriving, and one deliberate
-  miss with the red flash. Keep the diagnostics overlay visible -- it is the point.
--->
+The recording shows a successful hit, a new Addressables texture arriving, the diagnostics
+overlay, stable live-handle ownership, and a deliberate miss with the red flash.
 
 ---
 
