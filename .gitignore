@@ -108,5 +108,8 @@ InitTestScene*.unity*
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
 
+# Development process documentation
+/SESSION-LOG.md
+
 # Cloudflare Wrangler local cache (contains account metadata)
 /.wrangler/
