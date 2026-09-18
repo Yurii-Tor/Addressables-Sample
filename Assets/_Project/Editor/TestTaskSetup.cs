@@ -38,8 +38,9 @@ namespace AddressablesSample.Game.Editor
             EnsureFolders();
             ConfigureRoundTextureImporters();
             var fallback = CreateOrUpdateFallback();
+            var targetMesh = CreateOrUpdateTargetMesh();
             var material = CreateOrUpdateMaterial();
-            CreateOrUpdateTargetPrefab(material);
+            CreateOrUpdateTargetPrefab(targetMesh, material);
             var config = CreateOrUpdateConfig();
             var volumeProfile = CreateOrUpdateVolumeProfile();
             ConfigureAddressables();
@@ -68,6 +69,7 @@ namespace AddressablesSample.Game.Editor
         {
             TestTaskPaths.EnsureFolder(TestTaskPaths.ConfigFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.MaterialsFolder);
+            TestTaskPaths.EnsureFolder(TestTaskPaths.MeshesFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.PrefabsFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.ScenesFolder);
             TestTaskPaths.EnsureFolder(TestTaskPaths.TexturesFolder);
@@ -143,12 +145,92 @@ namespace AddressablesSample.Game.Editor
             return texture;
         }
 
+        private static Mesh CreateOrUpdateTargetMesh()
+        {
+            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(TestTaskPaths.TargetMesh);
+            if (mesh == null)
+            {
+                mesh = new Mesh { name = "TargetCube" };
+                AssetDatabase.CreateAsset(mesh, TestTaskPaths.TargetMesh);
+            }
+
+            var vertices = new List<Vector3>(24);
+            var normals = new List<Vector3>(24);
+            var uvs = new List<Vector2>(24);
+            var triangles = new List<int>(36);
+
+            // Every face is authored as bottom-left, bottom-right, top-right, top-left
+            // when viewed from outside. The four vertical faces therefore share world-up UVs
+            // instead of inheriting the inconsistent rotations of Unity's built-in cube.
+            AddFace(vertices, normals, uvs, triangles, Vector3.back,
+                new Vector3(-0.5f, -0.5f, -0.5f), new Vector3(0.5f, -0.5f, -0.5f),
+                new Vector3(0.5f, 0.5f, -0.5f), new Vector3(-0.5f, 0.5f, -0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.forward,
+                new Vector3(0.5f, -0.5f, 0.5f), new Vector3(-0.5f, -0.5f, 0.5f),
+                new Vector3(-0.5f, 0.5f, 0.5f), new Vector3(0.5f, 0.5f, 0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.left,
+                new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(-0.5f, -0.5f, -0.5f),
+                new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(-0.5f, 0.5f, 0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.right,
+                new Vector3(0.5f, -0.5f, -0.5f), new Vector3(0.5f, -0.5f, 0.5f),
+                new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0.5f, 0.5f, -0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.up,
+                new Vector3(-0.5f, 0.5f, -0.5f), new Vector3(0.5f, 0.5f, -0.5f),
+                new Vector3(0.5f, 0.5f, 0.5f), new Vector3(-0.5f, 0.5f, 0.5f));
+            AddFace(vertices, normals, uvs, triangles, Vector3.down,
+                new Vector3(0.5f, -0.5f, -0.5f), new Vector3(-0.5f, -0.5f, -0.5f),
+                new Vector3(-0.5f, -0.5f, 0.5f), new Vector3(0.5f, -0.5f, 0.5f));
+
+            mesh.Clear();
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetUVs(0, uvs);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateBounds();
+            EditorUtility.SetDirty(mesh);
+            AssetDatabase.SaveAssetIfDirty(mesh);
+            return mesh;
+        }
+
+        private static void AddFace(
+            ICollection<Vector3> vertices,
+            ICollection<Vector3> normals,
+            ICollection<Vector2> uvs,
+            ICollection<int> triangles,
+            Vector3 normal,
+            Vector3 bottomLeft,
+            Vector3 bottomRight,
+            Vector3 topRight,
+            Vector3 topLeft)
+        {
+            var first = vertices.Count;
+            vertices.Add(bottomLeft);
+            vertices.Add(bottomRight);
+            vertices.Add(topRight);
+            vertices.Add(topLeft);
+            for (var index = 0; index < 4; index++)
+            {
+                normals.Add(normal);
+            }
+
+            uvs.Add(new Vector2(0f, 0f));
+            uvs.Add(new Vector2(1f, 0f));
+            uvs.Add(new Vector2(1f, 1f));
+            uvs.Add(new Vector2(0f, 1f));
+            triangles.Add(first);
+            triangles.Add(first + 2);
+            triangles.Add(first + 1);
+            triangles.Add(first);
+            triangles.Add(first + 3);
+            triangles.Add(first + 2);
+        }
+
         private static Material CreateOrUpdateMaterial()
         {
-            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            var shader = Shader.Find("AddressablesSample/Target Surface");
             if (shader == null)
             {
-                throw new BuildFailedException("The URP/Lit shader is unavailable.");
+                throw new BuildFailedException("The AddressablesSample target shader is unavailable.");
             }
 
             var material = AssetDatabase.LoadAssetAtPath<Material>(TestTaskPaths.MaterialAsset);
@@ -159,42 +241,19 @@ namespace AddressablesSample.Game.Editor
             }
 
             material.shader = shader;
-            material.SetColor("_BaseColor", Color.white);
-
-            // URP recomputes the _EMISSION keyword from the material's own emission colour on
-            // every import. A black authored colour therefore strips the keyword the miss flash
-            // depends on, silently disabling it. The authored value below stays imperceptible and
-            // is overridden per-renderer by TargetView's MaterialPropertyBlock on the first frame,
-            // so it never renders -- it exists purely to keep the shader variant compiled in.
-            material.SetColor("_EmissionColor", new Color(0.08f, 0f, 0f, 1f));
-            material.SetTextureScale("_BaseMap", new Vector2(1f, -1f));
-            material.SetTextureOffset("_BaseMap", new Vector2(0f, 1f));
-            material.SetFloat("_Smoothness", 0.2f);
-            material.SetFloat("_Surface", 1f);
-            material.SetFloat("_Blend", 0f);
-            material.SetFloat("_AlphaClip", 0f);
-            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
-            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
-            material.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
-            material.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
-            material.SetFloat("_ZWrite", 0f);
-
-            // URP's "preserve specular lighting" path rewrites alpha blending into premultiplied
-            // blending and enables _ALPHAPREMULTIPLY_ON. The supplied PNGs carry straight alpha,
-            // so the option is turned off to keep the authored blend.
-            if (material.HasProperty("_BlendModePreserveSpecular"))
+            foreach (var keyword in material.shaderKeywords.ToArray())
             {
-                material.SetFloat("_BlendModePreserveSpecular", 0f);
+                material.DisableKeyword(keyword);
             }
 
-            material.SetOverrideTag("RenderType", "Transparent");
-            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            material.EnableKeyword("_EMISSION");
-            material.DisableKeyword("_ALPHATEST_ON");
-            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            material.SetShaderPassEnabled("ShadowCaster", false);
-            material.renderQueue = (int)RenderQueue.Transparent;
-            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            material.SetColor("_BaseColor", Color.white);
+            material.SetColor("_BackgroundColor", new Color(0.78f, 0.86f, 0.96f, 1f));
+            material.SetColor("_EmissionColor", new Color(0.08f, 0f, 0f, 1f));
+            material.SetTextureScale("_BaseMap", Vector2.one);
+            material.SetTextureOffset("_BaseMap", Vector2.zero);
+            material.SetOverrideTag("RenderType", "Opaque");
+            material.renderQueue = (int)RenderQueue.Geometry;
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
             EditorUtility.SetDirty(material);
             AssetDatabase.SaveAssetIfDirty(material);
             return material;
@@ -256,7 +315,7 @@ namespace AddressablesSample.Game.Editor
             return component;
         }
 
-        private static void CreateOrUpdateTargetPrefab(Material material)
+        private static void CreateOrUpdateTargetPrefab(Mesh targetMesh, Material material)
         {
             var prefabExists = AssetDatabase.LoadAssetAtPath<GameObject>(TestTaskPaths.TargetPrefab) != null;
             var root = prefabExists
@@ -275,13 +334,7 @@ namespace AddressablesSample.Game.Editor
                 var collider = GetOrAddSingle<BoxCollider>(root);
                 var target = GetOrAddSingle<TargetView>(root);
 
-                var cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
-                if (cube == null)
-                {
-                    throw new BuildFailedException("Unity's built-in cube mesh is unavailable.");
-                }
-
-                meshFilter.sharedMesh = cube;
+                meshFilter.sharedMesh = targetMesh;
                 renderer.sharedMaterial = material;
                 collider.center = Vector3.zero;
                 collider.size = Vector3.one;

@@ -63,6 +63,7 @@ namespace AddressablesSample.Game.Editor
         {
             RequireAsset<GameConfig>(TestTaskPaths.ConfigAsset, errors);
             var material = RequireAsset<Material>(TestTaskPaths.MaterialAsset, errors);
+            var targetMesh = RequireAsset<Mesh>(TestTaskPaths.TargetMesh, errors);
             RequireAsset<GameObject>(TestTaskPaths.TargetPrefab, errors);
             RequireAsset<SceneAsset>(TestTaskPaths.GameScene, errors);
             var fallback = RequireAsset<Texture2D>(TestTaskPaths.FallbackTexture, errors);
@@ -77,43 +78,31 @@ namespace AddressablesSample.Game.Editor
                 errors.Add("Generated volume profile must contain the four post-processing overrides.");
             }
 
-            if (material != null && (material.shader == null || material.shader.name != "Universal Render Pipeline/Lit"))
+            if (material != null && (material.shader == null || material.shader.name != "AddressablesSample/Target Surface"))
             {
-                errors.Add("Target material must use Universal Render Pipeline/Lit.");
+                errors.Add("Target material must use the AddressablesSample target surface shader.");
             }
 
             if (material != null &&
-                (Math.Abs(material.GetFloat("_Surface") - 1f) > 0.001f ||
-                 material.GetTag("RenderType", false) != "Transparent" ||
-                 material.renderQueue != (int)RenderQueue.Transparent ||
-                 !material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT")))
+                (material.GetTag("RenderType", false) != "Opaque" ||
+                 material.renderQueue != (int)RenderQueue.Geometry))
             {
-                errors.Add("Target material must use alpha-blended URP transparency.");
+                errors.Add("Target material must render as opaque geometry.");
             }
 
             if (material != null &&
-                (material.GetTextureScale("_BaseMap") != new Vector2(1f, -1f) ||
-                 material.GetTextureOffset("_BaseMap") != new Vector2(0f, 1f)))
+                (material.GetTextureScale("_BaseMap") != Vector2.one ||
+                 material.GetTextureOffset("_BaseMap") != Vector2.zero))
             {
-                errors.Add("Target material must vertically correct the supplied textures.");
+                errors.Add("Target material must preserve the generated cube UVs.");
             }
 
-            // The miss feedback drives _EmissionColor through a MaterialPropertyBlock, which is a
-            // no-op unless _EMISSION is compiled into the material. Inspector edits and URP
-            // material upgrades have both silently cleared it, so it is asserted explicitly.
-            if (material != null && !material.IsKeywordEnabled("_EMISSION"))
+            if (material != null && material.GetColor("_BackgroundColor") != new Color(0.78f, 0.86f, 0.96f, 1f))
             {
-                errors.Add("Target material must keep the _EMISSION keyword enabled for the miss flash.");
+                errors.Add("Target material must use the light cube background colour.");
             }
 
-            if (material != null &&
-                (material.IsKeywordEnabled("_ALPHAPREMULTIPLY_ON") ||
-                 Math.Abs(material.GetFloat("_SrcBlend") - (float)BlendMode.SrcAlpha) > 0.001f ||
-                 Math.Abs(material.GetFloat("_DstBlend") - (float)BlendMode.OneMinusSrcAlpha) > 0.001f ||
-                 Math.Abs(material.GetFloat("_ZWrite")) > 0.001f))
-            {
-                errors.Add("Target material must use straight alpha blending with depth writes disabled.");
-            }
+            ValidateTargetMesh(targetMesh, errors);
 
             if (fallback != null &&
                 (fallback.width != 8 || fallback.height != 8 ||
@@ -244,10 +233,46 @@ namespace AddressablesSample.Game.Editor
                 {
                     errors.Add("Target prefab cube mesh is missing.");
                 }
+                else if (filters.Length == 1 &&
+                         AssetDatabase.GetAssetPath(filters[0].sharedMesh) != TestTaskPaths.TargetMesh)
+                {
+                    errors.Add("Target prefab must use the generated upright-UV cube mesh.");
+                }
             }
             finally
             {
                 PrefabUtility.UnloadPrefabContents(root);
+            }
+        }
+
+        private static void ValidateTargetMesh(Mesh mesh, ICollection<string> errors)
+        {
+            if (mesh == null)
+            {
+                return;
+            }
+
+            var vertices = mesh.vertices;
+            var uvs = mesh.uv;
+            if (vertices.Length != 24 || uvs.Length != 24 || mesh.triangles.Length != 36)
+            {
+                errors.Add("Target cube mesh must contain six independent four-vertex faces.");
+                return;
+            }
+
+            for (var face = 0; face < 4; face++)
+            {
+                var first = face * 4;
+                if (uvs[first] != new Vector2(0f, 0f) ||
+                    uvs[first + 1] != new Vector2(1f, 0f) ||
+                    uvs[first + 2] != new Vector2(1f, 1f) ||
+                    uvs[first + 3] != new Vector2(0f, 1f) ||
+                    vertices[first].y >= vertices[first + 3].y ||
+                    vertices[first + 1].y >= vertices[first + 2].y)
+                {
+                    errors.Add("Every vertical target face must map the image upright.");
+                    return;
+                }
             }
         }
 

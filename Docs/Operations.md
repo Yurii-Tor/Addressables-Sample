@@ -31,7 +31,7 @@ New-Item -ItemType Directory -Force -Path Logs | Out-Null
 ## 3. Generate or repair the project
 
 **AddressablesSample > Game > Setup Test Task** creates or reconciles the generated scene, prefab,
-transparent material, fallback texture, post-processing profile, texture import settings,
+upright-UV cube mesh, opaque light-background material, fallback texture, post-processing profile, texture import settings,
 configuration, Build Settings, and Addressables source settings. It is safe to run
 repeatedly and preserves generated asset GUIDs and scene object identities. Setup
 intentionally restores the `Local` profile; select the Cloudflare workflow afterward when
@@ -55,19 +55,16 @@ Validate with **AddressablesSample > Game > Validate Generated Project** or:
 
 ### Material invariants the validator enforces
 
-The URP/Lit material is generated, not hand-authored, and two of its settings are
-recomputed by URP on every asset import:
+The generated material uses the URP-compatible `AddressablesSample/Target Surface` shader. It renders
+opaque geometry and composites each PNG's transparent pixels over a light blue cube colour,
+so the cube remains visible against the dark scene while the animal artwork stays crisp.
+`TargetView` still supplies the round texture, tint, and miss emission through one
+`MaterialPropertyBlock`.
 
-- **`_EMISSION`** is derived from the material's own emission colour. A black authored
-  colour makes URP strip the keyword, which silently disables the emissive half of the miss
-  flash. Setup therefore authors an imperceptible non-black emission colour, which
-  `TargetView`'s `MaterialPropertyBlock` overrides per renderer from the first frame.
-- **`_BlendModePreserveSpecular`** rewrites alpha blending into premultiplied blending and
-  enables `_ALPHAPREMULTIPLY_ON`. The supplied PNGs carry straight alpha, so setup turns it
-  off explicitly.
-
-Both are asserted by `ProjectValidation`, so a regression fails validation and CI rather
-than degrading quietly.
+The generated `TargetCube.asset` has independent vertices per face. Each vertical face maps
+UV bottom to world bottom and UV top to world top; no global texture flip is applied. Shader,
+render type, background colour, texture transform, mesh topology, mesh assignment, and all
+four world-up UV mappings are asserted by `ProjectValidation`, so regressions fail CI.
 
 ## 4. Scene and controls
 

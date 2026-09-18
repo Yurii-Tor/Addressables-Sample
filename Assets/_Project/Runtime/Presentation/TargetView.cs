@@ -10,7 +10,7 @@ namespace AddressablesSample.Game.Presentation
         private static readonly int BaseMapStId = Shader.PropertyToID("_BaseMap_ST");
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
-        private static readonly Vector4 CorrectedTextureTransform = new Vector4(1f, -1f, 0f, 1f);
+        private static readonly Vector4 TextureTransform = new Vector4(1f, 1f, 0f, 0f);
         private static readonly Color MissEmission = new Color(3f, 0f, 0f, 1f);
 
         [SerializeField] private Renderer _renderer;
@@ -183,7 +183,7 @@ namespace AddressablesSample.Game.Presentation
                 _propertyBlock.SetTexture(BaseMapId, _texture);
             }
 
-            _propertyBlock.SetVector(BaseMapStId, CorrectedTextureTransform);
+            _propertyBlock.SetVector(BaseMapStId, TextureTransform);
             _propertyBlock.SetColor(BaseColorId, _color);
             _propertyBlock.SetColor(EmissionColorId, _emission);
             _renderer.SetPropertyBlock(_propertyBlock);

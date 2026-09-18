@@ -9,6 +9,7 @@ namespace AddressablesSample.Game.Editor
         public const string Root = "Assets/_Project";
         public const string ConfigFolder = Root + "/Config";
         public const string MaterialsFolder = Root + "/Materials";
+        public const string MeshesFolder = Root + "/Meshes";
         public const string PrefabsFolder = Root + "/Prefabs";
         public const string ScenesFolder = Root + "/Scenes";
         public const string TexturesFolder = Root + "/Textures";
@@ -16,6 +17,7 @@ namespace AddressablesSample.Game.Editor
 
         public const string ConfigAsset = ConfigFolder + "/GameConfig.asset";
         public const string MaterialAsset = MaterialsFolder + "/Target.mat";
+        public const string TargetMesh = MeshesFolder + "/TargetCube.asset";
         public const string TargetPrefab = PrefabsFolder + "/Target.prefab";
         public const string GameScene = ScenesFolder + "/Game.unity";
         public const string FallbackTexture = TexturesFolder + "/FallbackTexture.asset";
