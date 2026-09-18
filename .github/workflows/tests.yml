@@ -12,6 +12,12 @@ name: Tests
 on:
   push:
     branches: [main, develop]
+    # Showcase-only changes do not need Unity validation.
+    paths-ignore:
+      - '**/*.md'
+      - 'Docs/**'
+      - 'LICENSE'
+      - '.github/**'
   pull_request:
   workflow_dispatch:
 
