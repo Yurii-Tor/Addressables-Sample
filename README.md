@@ -17,7 +17,7 @@ cancellation, and teardown.
 **▶ [Play it in your browser](https://demos.torproduction.com/addressables-selection/)**
 
 <video controls muted playsinline preload="metadata" width="956">
-  <source src="https://raw.githubusercontent.com/Yurii-Tor/Addressables-Sample/main/Docs/media/demo.mp4" type="video/mp4">
+  <source src="https://github.com/user-attachments/assets/f8860b90-f406-4d5c-8409-782a01408525" type="video/mp4">
   Your browser does not support embedded video.
 </video>
 
