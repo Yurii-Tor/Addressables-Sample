@@ -16,7 +16,12 @@ cancellation, and teardown.
 
 **▶ [Play it in your browser](https://demos.torproduction.com/addressables-selection/)**
 
-🎥 **[Watch the 15-second gameplay recording](Docs/media/demo.mp4)**
+<video controls muted playsinline preload="metadata" width="956">
+  <source src="https://raw.githubusercontent.com/Yurii-Tor/Addressables-Sample/main/Docs/media/demo.mp4" type="video/mp4">
+  Your browser does not support embedded video.
+</video>
+
+🎥 [Open the gameplay recording directly](Docs/media/demo.mp4)
 
 The recording shows a successful hit, a new Addressables texture arriving, the diagnostics
 overlay, stable live-handle ownership, and a deliberate miss with the red flash.
