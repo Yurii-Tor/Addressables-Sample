@@ -28,6 +28,13 @@ The PDF and Docs/Requirements.md are the source of truth.
 
 # Planning
 
+- For portfolio backlog work, read `PROJECT_DIRECTION.md` and `Docs/AgentStart.md`,
+  then only the selected brief from `Docs/WorkQueue.md` and its source map.
+- Keep the current milestone at the top of `Docs/ImplementationPlan.md`; its historical
+  implementation record is reference material, not a new task list.
+- `Docs/TaskExecution.md` routes verification and handoff. GitHub Issues track live
+  progress; keep their execution brief and `Docs/Issues/` counterpart aligned.
+
 For multi-file implementation, maintain an ExecPlan in
 Docs/ImplementationPlan.md with progress, decisions, validation, and blockers.
 
@@ -53,7 +60,10 @@ Docs/ImplementationPlan.md with progress, decisions, validation, and blockers.
 
 # Completion
 
-Before finishing:
+For documentation-only work, verify links, referenced paths/symbols, scope and whitespace;
+report that Unity was not run. Do not claim this validates runtime behavior.
+
+Before finishing runtime, generated-content, or build-behavior changes:
 - run EditMode and PlayMode tests;
 - verify the Addressables Use Asset Database and Use Existing Build workflows
   (Simulate Groups no longer exists in Addressables 4.0.1);

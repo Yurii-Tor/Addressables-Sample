@@ -3,6 +3,11 @@
 Build, deploy, and validation procedures. For what the project *is*, see the
 [README](../README.md).
 
+For implementing a portfolio backlog task, start at [AgentStart](AgentStart.md) and
+[TaskExecution](TaskExecution.md); select its brief through [WorkQueue](WorkQueue.md).
+The 2026-09-20 audit identified stale CI/hosting claims in section 9 below. Until P11
+is implemented, use the actual workflow YAML and section 9a for build/hosting behavior.
+
 ## 1. Exact versions
 
 - Unity: `6000.3.21f1` (`c02631ffc030`)
