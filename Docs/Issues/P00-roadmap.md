@@ -10,10 +10,10 @@ Findings were established from source; Unity/browser validation was not rerun fo
 This epic tracks implementation, not a claim the planned features are shipped.
 
 ## Context scaffold
-Local branch: `codex/portfolio-issue-scaffold`. The owner authorized local scaffold and issue
-creation, not Git push. Until that branch is shared, its new documentation will not exist
-in a fresh remote clone. Every child issue contains the complete task brief and essential
-shared constraints so it remains reviewable here.
+Published scaffold: [codex/portfolio-issue-scaffold](https://github.com/Yurii-Tor/Addressables-Sample/tree/codex/portfolio-issue-scaffold).
+The owner subsequently authorized pushing and merging this documentation into main.
+Every child issue contains the complete task brief and essential shared constraints.
+After integration, new implementation tasks should start from updated main.
 
 When available, read in this order:
 1. `AGENTS.md`, local status marker (if present), `PROJECT_DIRECTION.md`.

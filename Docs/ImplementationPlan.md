@@ -26,7 +26,9 @@ about 21 KB; task briefs are loaded individually rather than as one context dump
 Independent review tightened terminal telemetry, one-shot scenario reset, and fatal retry
 test setup. git diff --check passed. Unity was not run for this documentation-only milestone.
 GitHub connector lacked issue-write access; authenticated GitHub CLI created and verified
-the issues. No unresolved publication blocker. The local scaffold branch is not pushed.
+the issues. No unresolved publication blocker. The scaffold branch was subsequently pushed;
+the owner explicitly authorized its integration into main. The earlier no-push notes above
+record the original scaffold milestone, not the current publication state.
 
 ---
 
