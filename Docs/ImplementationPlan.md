@@ -1,3 +1,40 @@
+# Current milestone: portfolio issue scaffold (2026-09-20)
+
+Source audit baseline: `45fcc696f4005780d06db1bd8e5b28876c1dd604`.
+Task branch: `codex/portfolio-issue-scaffold`.
+Scope: detailed GitHub Issues, bounded local briefs, minimal-context entry points and
+execution/validation guidance. No runtime, asset, package, CI behavior or deployment changes.
+
+- [x] Inspect current rules, Git state, code and existing issues (none found).
+- [x] Define 12 bounded tasks, source maps, dependencies and acceptance criteria.
+- [x] Add project direction, agent entry point, execution guide and issue template.
+- [x] Independently review instructions for ambiguity, scope and ownership safety.
+- [x] Create/link GitHub Issues #1-#13 and verify all 13 bodies against local drafts.
+- [x] Verify paths, links, dependency graph, PowerShell example syntax and diff scope.
+- [x] Prepare validated documentation for a focused local commit; no Git push or implementation.
+
+Decisions: preserve the historical plan in place; read it selectively. GitHub owns live
+discussion/progress, local briefs mirror execution requirements. Scenario simulation must
+not publish released Unity assets or claim network transport cancellation. Documentation
+checks do not stand in for future Unity/WebGL validation.
+
+Validation: 20 Markdown documents checked, 51 local links resolved, 56 full source
+references verified, PowerShell examples parsed, 12 task dependencies checked acyclic,
+13 published bodies matched, 12 local task bodies matched their published counterparts.
+Historical plan content below is unchanged. The five navigation/rules documents total
+about 21 KB; task briefs are loaded individually rather than as one context dump.
+Independent review tightened terminal telemetry, one-shot scenario reset, and fatal retry
+test setup. git diff --check passed. Unity was not run for this documentation-only milestone.
+GitHub connector lacked issue-write access; authenticated GitHub CLI created and verified
+the issues. No unresolved publication blocker. The local scaffold branch is not pushed.
+
+---
+
+# Historical implementation record (retained)
+
+The material below records earlier decisions and evidence. It is not current task scope;
+use [AgentStart](AgentStart.md) and [WorkQueue](WorkQueue.md) for portfolio work.
+
 AddressablesSample Test — Decision-Complete Implementation Plan
 1. Summary and locked decisions
 •
