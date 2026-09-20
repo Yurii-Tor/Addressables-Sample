@@ -3,6 +3,7 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace AddressablesSample.Game.Editor
@@ -15,6 +16,8 @@ namespace AddressablesSample.Game.Editor
     {
         private const string CustomBuildPathArgument = "-customBuildPath";
         private const string DefaultWebGlBuildPath = "Builds/WebGL";
+        private const string WebGlExceptionRecoveryHarnessScenePath =
+            "Assets/_Project/WebGlExceptionRecoveryHarness.unity";
 
         /// <summary>
         /// Runs generation twice to prove it is idempotent, then asserts the structural validator.
@@ -40,12 +43,7 @@ namespace AddressablesSample.Game.Editor
         {
             Run(() =>
             {
-                if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.WebGL)
-                {
-                    throw new BuildFailedException(
-                        "The active build target must be WebGL before building the demo. " +
-                        "Actual target: " + EditorUserBuildSettings.activeBuildTarget + ".");
-                }
+                RequireWebGlBuildTarget();
 
                 TestTaskSetup.Run();
                 ProjectValidation.ValidateOrThrow();
@@ -82,7 +80,67 @@ namespace AddressablesSample.Game.Editor
             });
         }
 
-        private static void ConfigureWebGlPlayerSettings()
+        /// <summary>
+        /// Builds only the isolated P01 browser probe. It deliberately creates and removes its
+        /// scene through Editor APIs, so the committed demo scene and public Addressables content
+        /// are never used as a failure switch.
+        /// </summary>
+        public static void BuildWebGlExceptionRecoveryHarness()
+        {
+            Run(() =>
+            {
+                RequireWebGlBuildTarget();
+                TestTaskSetup.Run();
+                ProjectValidation.ValidateOrThrow();
+                ConfigureWebGlPlayerSettings();
+
+                if (AssetDatabase.LoadAssetAtPath<SceneAsset>(WebGlExceptionRecoveryHarnessScenePath) != null)
+                {
+                    throw new BuildFailedException(
+                        "The temporary WebGL exception-recovery harness scene already exists. " +
+                        "Resolve it before running this isolated probe.");
+                }
+
+                try
+                {
+                    var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                    new GameObject("WebGL Exception Recovery Harness")
+                        .AddComponent<Validation.WebGlExceptionRecoveryHarness>();
+                    if (!EditorSceneManager.SaveScene(scene, WebGlExceptionRecoveryHarnessScenePath))
+                    {
+                        throw new BuildFailedException("Unity could not save the temporary WebGL exception-recovery harness scene.");
+                    }
+
+                    var outputPath = ResolveWebGlOutputPath();
+                    Directory.CreateDirectory(outputPath);
+                    var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                    {
+                        scenes = new[] { WebGlExceptionRecoveryHarnessScenePath },
+                        locationPathName = outputPath,
+                        target = BuildTarget.WebGL,
+                        targetGroup = BuildTargetGroup.WebGL,
+                        options = BuildOptions.None
+                    });
+
+                    if (report == null || report.summary.result != BuildResult.Succeeded)
+                    {
+                        throw new BuildFailedException(
+                            "WebGL exception-recovery harness build failed with result: " +
+                            (report == null ? "no report" : report.summary.result.ToString()));
+                    }
+
+                    Debug.Log($"WebGL exception-recovery harness built into {outputPath} " +
+                              $"({report.summary.totalSize / (1024 * 1024)} MB).");
+                }
+                finally
+                {
+                    AssetDatabase.DeleteAsset(WebGlExceptionRecoveryHarnessScenePath);
+                    AddressablesWorkflow.UseAssetDatabase();
+                }
+            });
+        }
+
+        public static void ConfigureWebGlPlayerSettings()
         {
             // Uncompressed output is not an option: the IL2CPP WebAssembly module builds to about
             // 46 MiB, and static hosts cap individual assets well below that (Cloudflare Workers
@@ -96,10 +154,20 @@ namespace AddressablesSample.Game.Editor
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
             PlayerSettings.WebGL.decompressionFallback = true;
             PlayerSettings.WebGL.dataCaching = true;
-            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.None;
+            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
             PlayerSettings.runInBackground = true;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.WebGL, ScriptingImplementation.IL2CPP);
             PlayerSettings.SetIl2CppCompilerConfiguration(NamedBuildTarget.WebGL, Il2CppCompilerConfiguration.Release);
+        }
+
+        private static void RequireWebGlBuildTarget()
+        {
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.WebGL)
+            {
+                throw new BuildFailedException(
+                    "The active build target must be WebGL before building the demo. " +
+                    "Actual target: " + EditorUserBuildSettings.activeBuildTarget + ".");
+            }
         }
 
         /// <summary>

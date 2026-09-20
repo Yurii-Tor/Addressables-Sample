@@ -238,9 +238,45 @@ Then build straight into the static site directory:
 .\Tools\Build-WebGlDemo.ps1 -OutputPath '<demos-site>\public\addressables-selection'
 ```
 
+For a local, non-deploying build, always pass an explicit path in this checkout. The helper's
+default points at the separate demos-site repository:
+
+```powershell
+.\Tools\Build-WebGlDemo.ps1 -OutputPath (Join-Path (Get-Location).Path 'Builds/WebGL')
+```
+
 The script switches the project to WebGL, regenerates and validates the project, builds the
 WebGL Addressables content, and produces the player. The first target switch reimports every
 asset and takes a while.
+
+### P01 local exception-recovery probe
+
+The production WebGL configuration enables `ExplicitlyThrownExceptionsOnly`. To demonstrate
+that this is not merely a failed-result path, build the normal player as above, then build the
+temporary isolated recovery harness into a nested local output. The Editor creates its scene
+through Unity APIs, removes it after the build, and never changes `Game.unity` or hosted
+Addressables content.
+
+```powershell
+$harnessOutput = Join-Path (Get-Location).Path 'Builds/WebGL/ExceptionRecoveryHarness'
+& $unityPath -batchmode -nographics -quit -projectPath $projectPath -buildTarget WebGL `
+  -executeMethod AddressablesSample.Game.Editor.ContinuousIntegration.BuildWebGlExceptionRecoveryHarness `
+  -customBuildPath $harnessOutput -logFile Logs/WebGLExceptionRecoveryHarness.log
+python -m http.server 8080 --directory $harnessOutput
+```
+
+Open `http://localhost:8080` in a current desktop browser and retain the browser version,
+viewport, build commit and Console output as local evidence. The harness must display three
+`PASS` rows and log `P01_WEBGL_HARNESS_COMPLETE: PASS`. Its Console also contains an explicit
+thrown-exception marker, the controlled fallback warning for the absent round key, and the
+controlled startup-fatal marker. Those expected controlled diagnostics do not make the probe
+fail; any `P01_WEBGL_HARNESS_FAIL` does. The probe verifies, in order: a C# throw enters round
+recovery, a missing key applies fallback before the next interaction succeeds, and an explicit
+startup throw reaches the fatal status after every fake owner is released exactly once.
+
+Stop the local HTTP server after inspection. The build command restores `Local` + `Use Asset
+Database`; run the restore command in section 7 and structural validation before returning to
+desktop editor testing if another build command left a different workflow selected.
 
 Deploy the static site from its own directory:
 

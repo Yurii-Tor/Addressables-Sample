@@ -1,4 +1,47 @@
-# Current milestone: portfolio issue scaffold (2026-09-20)
+# Current milestone: P01 WebGL exception recovery (2026-09-20)
+
+Source commit: `6bbb4c43b780b2d88f1e806cf89fc7737e3617a8` (`origin/main`).
+Task branch: `codex/webgl-exception-recovery`.
+Scope: configure the production WebGL player for explicitly thrown exceptions; add a direct
+configuration assertion and a temporary, isolated WebGL recovery harness. Do not change the
+demo scene, public hosted content, gameplay UI, retry behaviour, packages or architecture.
+
+- [x] Read repository routing, P01, live Issue #2 (no comments), operations and source map.
+- [x] Confirm clean, current `main`, no release tags, then branch from `origin/main`.
+- [x] Update the shared WebGL production configurator and its focused EditMode assertion.
+- [x] Add the editor-generated, non-demo harness for explicit throw, missing key and startup failure.
+- [x] Run generated validation, EditMode, both Addressables PlayMode workflows and restore Local + Asset Database.
+- [x] Build normal and harness WebGL players under `Builds/WebGL`, then record browser evidence.
+- [x] Inspect the diff/ownership paths and prepare the focused local commit.
+
+Decision: begin with `ExplicitlyThrownExceptionsOnly`; use no stronger policy unless the browser
+probe proves it necessary. The harness only invokes existing controller recovery paths with
+isolated fake owners; it is not a player-facing scenario or retry system. Its generated scene is
+temporary and never replaces or edits the committed demo scene.
+
+Verification: `ContinuousIntegration.VerifyGeneratedProject` passed from the final tree in
+`Logs/P01-VerifyGenerated-Final.log` (`Generated project is reproducible and structurally valid`,
+exit code 0). All 39 EditMode tests passed in `Logs/P01-EditMode-Final.xml`, including the direct
+production-setting assertion `ProductionWebGlConfiguration_EnablesExplicitlyThrownExceptionRecovery`.
+The full PlayMode suite passed 4/4 in both `Logs/P01-PlayMode-AssetDatabase.xml` and
+`Logs/P01-PlayMode-ExistingBuild.xml`; the latter used the fresh desktop Local content from
+`Logs/P01-AddressablesBuild-StandaloneWindows64.log`. `Logs/P01-RestoreLocal-Final.log` confirms
+the documented Local + Use Asset Database baseline was restored.
+
+The normal production player was explicitly built into `Builds/WebGL` (`index.html`; build proof
+in `Logs/P01-WebGLDemoBuild.log`). The isolated player was explicitly built into
+`Builds/WebGL/ExceptionRecoveryHarness` (`index.html`; build proof in
+`Logs/P01-WebGLExceptionRecoveryHarness.log`) and its temporary scene was removed afterward.
+At `http://127.0.0.1:8080/index.html`, the Codex in-app browser visibly displayed all three PASS
+rows. Its Console recorded `P01_WEBGL_EXPLICIT_THROW` for both round and startup, the controlled
+missing-key fallback warning, the controlled startup fatal diagnostic, all three
+`P01_WEBGL_HARNESS_PASS` markers, and `P01_WEBGL_HARNESS_COMPLETE: PASS`. The in-app browser
+automation does not expose its engine-version or exact viewport metadata; no external host,
+public content, demo scene, retry/UI system, packages, or architecture was changed.
+
+---
+
+# Historical milestone: portfolio issue scaffold (2026-09-20)
 
 Source audit baseline: `45fcc696f4005780d06db1bd8e5b28876c1dd604`.
 Task branch: `codex/portfolio-issue-scaffold`.
