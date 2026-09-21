@@ -60,6 +60,15 @@ Docs/ImplementationPlan.md with progress, decisions, validation, and blockers.
 
 # Completion
 
+For every completed repository change, prepare the task branch for PR review before handoff:
+
+- create a focused local commit after applicable validation passes;
+- inspect the full branch diff against its intended base and confirm the working tree is clean;
+- report the proposed PR title, base branch, summary, validation evidence, known gaps, and the
+  exact commit range for the reviewer;
+- do not push or create the remote PR unless the owner explicitly authorizes those external
+  actions. Until then, describe the result as locally prepared for PR review.
+
 For documentation-only work, verify links, referenced paths/symbols, scope and whitespace;
 report that Unity was not run. Do not claim this validates runtime behavior.
 
