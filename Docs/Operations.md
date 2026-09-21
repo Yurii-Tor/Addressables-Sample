@@ -249,7 +249,7 @@ The script switches the project to WebGL, regenerates and validates the project,
 WebGL Addressables content, and produces the player. The first target switch reimports every
 asset and takes a while.
 
-### P01 local exception-recovery probe
+### P01 local exception-recovery probes
 
 The production WebGL configuration enables `ExplicitlyThrownExceptionsOnly`. To demonstrate
 that this is not merely a failed-result path, build the normal player as above, then build the
@@ -258,21 +258,38 @@ through Unity APIs, removes it after the build, and never changes `Game.unity` o
 Addressables content.
 
 ```powershell
-$harnessOutput = Join-Path (Get-Location).Path 'Builds/WebGL/ExceptionRecoveryHarness'
+$explicitHarnessOutput = Join-Path (Get-Location).Path 'Builds/WebGL/ExceptionRecoveryHarness'
 & $unityPath -batchmode -nographics -quit -projectPath $projectPath -buildTarget WebGL `
   -executeMethod AddressablesSample.Game.Editor.ContinuousIntegration.BuildWebGlExceptionRecoveryHarness `
-  -customBuildPath $harnessOutput -logFile Logs/WebGLExceptionRecoveryHarness.log
-python -m http.server 8080 --directory $harnessOutput
+  -customBuildPath $explicitHarnessOutput -logFile Logs/WebGLExceptionRecoveryHarness.log
+python -m http.server 8080 --directory $explicitHarnessOutput
 ```
 
-Open `http://localhost:8080` in a current desktop browser and retain the browser version,
-viewport, build commit and Console output as local evidence. The harness must display three
-`PASS` rows and log `P01_WEBGL_HARNESS_COMPLETE: PASS`. Its Console also contains an explicit
-thrown-exception marker, the controlled fallback warning for the absent round key, and the
-controlled startup-fatal marker. Those expected controlled diagnostics do not make the probe
-fail; any `P01_WEBGL_HARNESS_FAIL` does. The probe verifies, in order: a C# throw enters round
-recovery, a missing key applies fallback before the next interaction succeeds, and an explicit
-startup throw reaches the fatal status after every fake owner is released exactly once.
+The explicit harness must display three `PASS` rows and log
+`P01_WEBGL_HARNESS_COMPLETE: PASS`. It is intentionally a **substitute-owner** probe: its only
+claim is that a C# exception actually thrown from an `IAddressableLoad` reaches controller
+recovery under the production WebGL exception policy. Do not use its missing-key or fatal rows
+as evidence for real Addressables or rendered production presentation.
+
+Run the separate real-loader/presentation probe for those criteria:
+
+```powershell
+$productionHarnessOutput = Join-Path (Get-Location).Path 'Builds/WebGL/ProductionRecoveryHarness'
+& $unityPath -batchmode -nographics -quit -projectPath $projectPath -buildTarget WebGL `
+  -executeMethod AddressablesSample.Game.Editor.ContinuousIntegration.BuildWebGlProductionRecoveryHarness `
+  -customBuildPath $productionHarnessOutput -logFile Logs/WebGLProductionRecoveryHarness.log
+python -m http.server 8080 --directory $productionHarnessOutput
+```
+
+This player builds local WebGL Addressables content and has two temporary scenes made by Editor
+APIs. The first config's initial round points at a valid but non-addressable GUID. Confirm the
+actual `HudView` says `Image failed - using fallback`, the real target visibly shows its fallback
+texture, then click that target normally. Confirm score 1, `Tap the object!`, and a different
+real Addressable round texture before the probe opens its second scene. There, the startup
+fallback has a different non-addressable GUID: confirm the actual `HudView` says
+`Unable to start. See Console.` and no target remains. Retain screenshots, browser/version and
+viewport when available, build commit, the user click, expected/actual results, and Console
+evidence: the two `InvalidKeyException` diagnostics plus `P01_WEBGL_REAL_COMPLETE: PASS`.
 
 Stop the local HTTP server after inspection. The build command restores `Local` + `Use Asset
 Database`; run the restore command in section 7 and structural validation before returning to

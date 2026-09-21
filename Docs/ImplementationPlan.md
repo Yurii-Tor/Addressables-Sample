@@ -1,43 +1,44 @@
-# Current milestone: P01 WebGL exception recovery (2026-09-20)
+# Current milestone: P01 WebGL exception recovery review completion (2026-09-21)
 
-Source commit: `6bbb4c43b780b2d88f1e806cf89fc7737e3617a8` (`origin/main`).
-Task branch: `codex/webgl-exception-recovery`.
-Scope: configure the production WebGL player for explicitly thrown exceptions; add a direct
-configuration assertion and a temporary, isolated WebGL recovery harness. Do not change the
-demo scene, public hosted content, gameplay UI, retry behaviour, packages or architecture.
+Review base: `5e59450b4ea34e7eb38cda8d1395026ccfce9a69` on
+`codex/webgl-exception-recovery`; task branch remains unchanged. Scope: retain the valid isolated
+explicit-throw check, then add browser proof for real Addressables loading and production
+presentation. Do not alter `Game.unity`, public content, packages, retry, P02/P05 or architecture.
 
-- [x] Read repository routing, P01, live Issue #2 (no comments), operations and source map.
-- [x] Confirm clean, current `main`, no release tags, then branch from `origin/main`.
-- [x] Update the shared WebGL production configurator and its focused EditMode assertion.
-- [x] Add the editor-generated, non-demo harness for explicit throw, missing key and startup failure.
-- [x] Run generated validation, EditMode, both Addressables PlayMode workflows and restore Local + Asset Database.
-- [x] Build normal and harness WebGL players under `Builds/WebGL`, then record browser evidence.
-- [x] Inspect the diff/ownership paths and prepare the focused local commit.
+- [x] Read routing, P01, live Issue #2 (open; no comments), TaskExecution and Git state.
+- [x] Keep the explicit-throw fake-owner probe as a policy/recovery-only check.
+- [x] Add Editor-created two-scene real-loader/presentation player with temporary non-addressable keys.
+- [x] Verify visible missing-key fallback, a physical target click and next successful Addressable round.
+- [x] Verify visible startup fatal UI and real owner count returning to zero.
+- [x] Run generated validation, EditMode, both PlayMode workflows, local restore and ownership/stale audit.
+- [x] Build only to explicit `Builds/WebGL/ProductionRecoveryHarness`; record browser evidence.
+- [x] Inspect task ownership and prepare the follow-up local commit.
 
-Decision: begin with `ExplicitlyThrownExceptionsOnly`; use no stronger policy unless the browser
-probe proves it necessary. The harness only invokes existing controller recovery paths with
-isolated fake owners; it is not a player-facing scenario or retry system. Its generated scene is
-temporary and never replaces or edits the committed demo scene.
+Decision: `ExplicitlyThrownExceptionsOnly` remains sufficient. The existing
+`ExceptionRecoveryHarness` deliberately uses scripted owners only to prove a C# throw reaches
+the controller catch/recovery path; it is not evidence of an Addressables failure or a rendered
+production UI. `ProductionRecoveryHarness` uses `GameBootstrapper`, `UnityAddressableAssetLoader`,
+`HudView`, `PointerSelectionInput` and `UnityTargetFactory`. Its two temporary scenes/configs and
+non-addressable texture GUIDs are made and deleted through `AssetDatabase`/`EditorSceneManager`.
 
-Verification: `ContinuousIntegration.VerifyGeneratedProject` passed from the final tree in
-`Logs/P01-VerifyGenerated-Final.log` (`Generated project is reproducible and structurally valid`,
-exit code 0). All 39 EditMode tests passed in `Logs/P01-EditMode-Final.xml`, including the direct
-production-setting assertion `ProductionWebGlConfiguration_EnablesExplicitlyThrownExceptionRecovery`.
-The full PlayMode suite passed 4/4 in both `Logs/P01-PlayMode-AssetDatabase.xml` and
-`Logs/P01-PlayMode-ExistingBuild.xml`; the latter used the fresh desktop Local content from
-`Logs/P01-AddressablesBuild-StandaloneWindows64.log`. `Logs/P01-RestoreLocal-Final.log` confirms
-the documented Local + Use Asset Database baseline was restored.
+Verification: final structural validation passed in `Logs/P01-Review-VerifyGenerated-Final.log`.
+All EditMode tests passed 39/39 in `Logs/P01-Review-EditMode.xml`. PlayMode passed 4/4 in both
+`Logs/P01-Review-PlayMode-AssetDatabase.xml` and
+`Logs/P01-Review-PlayMode-ExistingBuild.xml`; the latter used fresh desktop content from
+`Logs/P01-Review-AddressablesBuild-StandaloneWindows64.log`. Local + Use Asset Database was
+restored in `Logs/P01-Review-RestoreLocal.log`.
 
-The normal production player was explicitly built into `Builds/WebGL` (`index.html`; build proof
-in `Logs/P01-WebGLDemoBuild.log`). The isolated player was explicitly built into
-`Builds/WebGL/ExceptionRecoveryHarness` (`index.html`; build proof in
-`Logs/P01-WebGLExceptionRecoveryHarness.log`) and its temporary scene was removed afterward.
-At `http://127.0.0.1:8080/index.html`, the Codex in-app browser visibly displayed all three PASS
-rows. Its Console recorded `P01_WEBGL_EXPLICIT_THROW` for both round and startup, the controlled
-missing-key fallback warning, the controlled startup fatal diagnostic, all three
-`P01_WEBGL_HARNESS_PASS` markers, and `P01_WEBGL_HARNESS_COMPLETE: PASS`. The in-app browser
-automation does not expose its engine-version or exact viewport metadata; no external host,
-public content, demo scene, retry/UI system, packages, or architecture was changed.
+The first attempt built outside this checkout because `Start-Process` split an unquoted path; it
+is rejected evidence and was not modified. The accepted local player was built at
+`Builds/WebGL/ProductionRecoveryHarness/index.html` with proof in
+`Logs/P01-Review-WebGLProductionRecoveryHarness-Local.log` (12 MB); its temporary assets were
+removed and no hosted content changed. In the Codex in-app browser at `http://127.0.0.1:8080`,
+screenshots captured (1) actual checkerboard fallback plus `Image failed - using fallback`, (2)
+the user click's successful ant texture/ready state, and (3) `Unable to start. See Console.` with
+no target. Console evidence records real `InvalidKeyException` for each missing GUID,
+`P01_WEBGL_REAL_USER_CLICK`, both `P01_WEBGL_REAL_PASS` checks and
+`P01_WEBGL_REAL_COMPLETE: PASS`. Browser engine version and exact viewport remain unavailable
+from the in-app-browser API; behavior, UI and console markers were observed.
 
 ---
 
