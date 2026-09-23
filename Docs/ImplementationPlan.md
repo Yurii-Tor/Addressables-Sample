@@ -1,4 +1,40 @@
-# Current milestone: P01 WebGL exception recovery review completion (2026-09-21)
+# Current milestone: P02 restore the local Addressables workflow after WebGL builds (2026-09-23)
+
+Base: `f3b3dad9f9f835eddd78519c7c2d79fd7d15332d` (`origin/main`). Branch:
+`codex/webgl-build-workflow-cleanup`. Scope: Issue #3 only; preserve the active WebGL target,
+restore Local + Use Asset Database after every begun setup/build path, and report both errors if
+build and cleanup fail. Do not restore the platform, clear outputs/caches, revert arbitrary
+ProjectSettings, or touch P03/gameplay.
+
+- [x] Read repository/local rules, routing, P02, TaskExecution and live Issue #3 (open; no comments).
+- [x] Confirm clean/up-to-date `main`, no release tags, P01 source/tests and PR rules integrated.
+- [x] Create the requested task branch from verified `origin/main`.
+- [x] Add bounded cleanup orchestration and five EditMode cases with actual settings and error assertions.
+- [x] Update Operations with exact restored and retained state.
+- [x] Run generated validation, EditMode, both PlayMode workflows, ownership/stale audit and local WebGL build.
+- [x] Restore Local + Use Asset Database after checks and review the scoped diff; validation blockers: none.
+
+Decision: keep `RequireWebGlBuildTarget` before all mutation. The postcondition is only Local profile
+and Use Asset Database play-mode builder; the active target and WebGL PlayerSettings remain as set.
+Restoration neither clears download caches nor removes player output. The content build calls
+`CleanPlayerContent`, so a failed build can leave content/output incomplete. If cleanup throws after
+a build error, log cleanup separately and preserve the build exception as the propagated failure.
+
+Verification: generated validation passed (`Logs/P02-VerifyGenerated.log`); final EditMode 44/44
+(`Logs/P02-EditMode-Final.xml`); PlayMode 4/4 in Asset Database and 4/4 in Existing Build
+(`Logs/P02-PlayMode-AssetDatabase.xml`, `Logs/P02-PlayMode-ExistingBuild.xml`), using fresh Win64
+content with 24 locations (`Logs/P02-AddressablesBuild-Win64.log`). Runtime ownership/stale audit:
+the loader remains the only raw-handle owner/releaser; the controller still checks generation,
+pending-owner identity and target validity, covered by the three-out-of-order and late-destruction
+PlayMode tests. No runtime ownership or cancellation files changed. The successful WebGL player is
+at `Builds/WebGL/P02-BuildWorkflowCleanup/index.html` (12 MB); log proves content build and cleanup
+(`Logs/P02-WebGLBuild.log`). Final restore selected Local + Use Asset Database and retained WebGL
+(`Logs/P02-RestoreLocalAfterTests.log`). Unity needed elevated access to reach its Licensing
+Client; final runs exited 0. No remaining validation blockers.
+
+---
+
+# Historical milestone: P01 WebGL exception recovery review completion (2026-09-21)
 
 Review base: `5e59450b4ea34e7eb38cda8d1395026ccfce9a69` on
 `codex/webgl-exception-recovery`; task branch remains unchanged. Scope: retain the valid isolated

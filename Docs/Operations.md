@@ -333,8 +333,21 @@ An Addressables content build switches the play-mode script to **Use Existing Bu
 the content it produces belongs to the active build target. Both the structural validator
 and the PlayMode suite reject that combination in the editor -- correctly, since editor play
 mode cannot load WebGL bundles. `ContinuousIntegration.BuildWebGl` therefore restores
-**Use Asset Database** before returning, so a demo build never leaves the repository in a
-state its own checks fail.
+**Local + Use Asset Database** before returning. The active build target must already be WebGL;
+that precondition is checked before setup changes anything. After setup starts, restoration is
+attempted on success and on setup, content-build, or player-build failure. When restoration
+succeeds, the active Addressables profile is **Local**, the play-mode script is **Use Asset
+Database (fastest)**, and Addressables remains configured not to build content as part of a player
+build.
+
+The active build target remains WebGL, and the WebGL PlayerSettings configured for the build remain
+in place. Restoration does not clear the download cache or delete player output. The content build
+itself calls `CleanPlayerContent` before rebuilding, so older platform-specific Addressables output
+can be removed and a failed content build can leave incomplete output. A failed player build can
+also leave partial player output; cleanup does not remove or rebuild either output. It does not
+revert unrelated ProjectSettings. If both the build and restoration fail, the build exception
+remains the propagated failure and the restoration exception is logged separately. If only
+restoration fails, that exception is propagated.
 
 ## 10. Architecture and ownership
 
