@@ -55,10 +55,20 @@ Docs/ImplementationPlan.md with progress, decisions, validation, and blockers.
 - Never use git add .
 - Stage only files belonging to the current milestone.
 - Do not commit Library, Temp, Logs, obj, Build, Builds, .idea, APKs, or local logs.
-- Do not amend, rebase, reset, delete branches, or push.
+- Do not amend, rebase, reset, or delete branches.
 - Local milestone commits are authorized.
 
 # Completion
+
+For every completed repository change, prepare the task branch for PR review before handoff:
+
+- create a focused local commit after applicable validation passes;
+- inspect the full branch diff against its intended base and confirm the working tree is clean;
+- report the proposed PR title, base branch, summary, validation evidence, known gaps, and the
+  exact commit range for the reviewer;
+- after the applicable review checks pass, push the reviewed task branch and create the remote
+  PR; the owner has authorized these actions. Report the PR URL when it is ready for review.
+- never merge, close the PR, deploy, or publish unless the owner explicitly requests it.
 
 For documentation-only work, verify links, referenced paths/symbols, scope and whitespace;
 report that Unity was not run. Do not claim this validates runtime behavior.
