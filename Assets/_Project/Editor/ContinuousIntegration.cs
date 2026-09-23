@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.CompilerServices;
 using AddressablesSample.Game.Config;
 using AddressablesSample.Game.Presentation;
 using UnityEditor;
@@ -11,6 +12,8 @@ using UnityEngine.Rendering.Universal;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+
+[assembly: InternalsVisibleTo("AddressablesSample.Game.EditModeTests")]
 
 namespace AddressablesSample.Game.Editor
 {
@@ -65,39 +68,77 @@ namespace AddressablesSample.Game.Editor
             {
                 RequireWebGlBuildTarget();
 
-                TestTaskSetup.Run();
-                ProjectValidation.ValidateOrThrow();
-                AddressablesWorkflow.BuildLocalAndUseExisting();
-                ConfigureWebGlPlayerSettings();
+                ExecuteWebGlBuildWithCleanup(
+                    () =>
+                    {
+                        TestTaskSetup.Run();
+                        ProjectValidation.ValidateOrThrow();
+                    },
+                    AddressablesWorkflow.BuildLocalAndUseExisting,
+                    () =>
+                    {
+                        ConfigureWebGlPlayerSettings();
 
-                var outputPath = ResolveWebGlOutputPath();
-                Directory.CreateDirectory(outputPath);
+                        var outputPath = ResolveWebGlOutputPath();
+                        Directory.CreateDirectory(outputPath);
 
-                var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-                {
-                    scenes = new[] { TestTaskPaths.GameScene },
-                    locationPathName = outputPath,
-                    target = BuildTarget.WebGL,
-                    targetGroup = BuildTargetGroup.WebGL,
-                    options = BuildOptions.None
-                });
+                        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                        {
+                            scenes = new[] { TestTaskPaths.GameScene },
+                            locationPathName = outputPath,
+                            target = BuildTarget.WebGL,
+                            targetGroup = BuildTargetGroup.WebGL,
+                            options = BuildOptions.None
+                        });
 
-                if (report == null || report.summary.result != BuildResult.Succeeded)
-                {
-                    throw new BuildFailedException(
-                        "WebGL player build failed with result: " +
-                        (report == null ? "no report" : report.summary.result.ToString()));
-                }
+                        if (report == null || report.summary.result != BuildResult.Succeeded)
+                        {
+                            throw new BuildFailedException(
+                                "WebGL player build failed with result: " +
+                                (report == null ? "no report" : report.summary.result.ToString()));
+                        }
 
-                Debug.Log($"WebGL demo built into {outputPath} " +
-                          $"({report.summary.totalSize / (1024 * 1024)} MB).");
-
-                // The content build switches Addressables to Use Existing Build, and the content
-                // it just produced is WebGL content. Leaving the project that way makes both the
-                // structural validator and the PlayMode suite fail in the editor, so the committed
-                // baseline is restored before returning.
-                AddressablesWorkflow.UseAssetDatabase();
+                        Debug.Log($"WebGL demo built into {outputPath} " +
+                                  $"({report.summary.totalSize / (1024 * 1024)} MB).");
+                    },
+                    AddressablesWorkflow.UseAssetDatabase);
             });
+        }
+
+        internal static void ExecuteWebGlBuildWithCleanup(
+            Action setup,
+            Action buildContent,
+            Action buildPlayer,
+            Action restoreLocalWorkflow)
+        {
+            Exception buildException = null;
+            try
+            {
+                setup();
+                buildContent();
+                buildPlayer();
+            }
+            catch (Exception exception)
+            {
+                buildException = exception;
+                throw;
+            }
+            finally
+            {
+                try
+                {
+                    restoreLocalWorkflow();
+                }
+                catch (Exception restorationException)
+                {
+                    if (buildException == null)
+                    {
+                        throw;
+                    }
+
+                    Debug.LogException(restorationException);
+                }
+            }
         }
 
         /// <summary>

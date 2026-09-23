@@ -5,6 +5,7 @@
     "AddressablesSample.Game.Runtime",
     "AddressablesSample.Game.Editor",
     "Unity.Addressables",
+    "Unity.Addressables.Editor",
     "Unity.ResourceManager"
   ],
   "includePlatforms": [
