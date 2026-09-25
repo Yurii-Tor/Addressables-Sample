@@ -9,8 +9,8 @@ namespace AddressablesSample.Game.Presentation
 {
     /// <summary>
     /// Renders the runtime facts that the architecture is built around but that are otherwise
-    /// invisible: the controller state machine, the round generation counter, and the number of
-    /// live Addressables handle owners. It only observes; it never mutates game state, and it
+    /// invisible: the controller state machine, terminal round history, and the number of
+    /// active Addressables load owners. It only observes; it never mutates game state, and it
     /// reads the controller through polling so the controller keeps no presentation coupling.
     /// </summary>
     public sealed class DiagnosticsOverlay : MonoBehaviour
@@ -21,12 +21,17 @@ namespace AddressablesSample.Game.Presentation
         [SerializeField] private bool _visible = true;
 
         private readonly List<string> _trace = new List<string>(MaxTraceEntries);
+        private readonly List<TerminalRoundRecord> _unseenRounds = new List<TerminalRoundRecord>(GameController.RoundHistoryCapacity);
         private readonly StringBuilder _builder = new StringBuilder(256);
         private GUIStyle _panelStyle;
         private GUIStyle _labelStyle;
         private Texture2D _panelTexture;
-        private int _lastObservedGeneration = -1;
-        private GameState _lastObservedState = GameState.Uninitialized;
+        private GameController _observedController;
+        private long _lastReadSequence;
+        private long _missedRounds;
+
+        internal IReadOnlyList<string> TraceEntries => _trace;
+        internal long MissedRounds => _missedRounds;
 
         internal void Configure(GameBootstrapper bootstrapper, bool visible)
         {
@@ -64,34 +69,36 @@ namespace AddressablesSample.Game.Presentation
         }
 
         /// <summary>
-        /// Detects a settled round by watching the generation counter and the state machine, so the
-        /// trace stays accurate without the controller having to publish presentation events.
+        /// Reads every retained terminal record since this overlay's last poll.
         /// </summary>
         private void SampleRoundTrace()
         {
             var controller = _bootstrapper == null ? null : _bootstrapper.Controller;
+            SampleRoundTrace(controller);
+        }
+
+        internal void SampleRoundTrace(GameController controller)
+        {
+            if (!ReferenceEquals(controller, _observedController))
+            {
+                _observedController = controller;
+                _lastReadSequence = 0;
+                _missedRounds = 0;
+                _trace.Clear();
+            }
+
             if (controller == null)
             {
                 return;
             }
 
-            var generation = controller.RoundGeneration;
-            var state = controller.State;
-
-            var settled = state == GameState.Ready &&
-                          _lastObservedState != GameState.Ready &&
-                          generation == _lastObservedGeneration;
-            if (settled)
+            _unseenRounds.Clear();
+            _missedRounds += controller.ReadTerminalRounds(_lastReadSequence, _unseenRounds);
+            foreach (var round in _unseenRounds)
             {
-                AppendTrace($"round #{generation} settled in {controller.LastRoundLoadMilliseconds:F0} ms");
+                AppendTrace($"round #{round.RequestedGeneration} {round.Outcome} in {round.ElapsedMilliseconds:F0} ms");
+                _lastReadSequence = round.Sequence;
             }
-            else if (generation != _lastObservedGeneration && state == GameState.LoadingRound)
-            {
-                AppendTrace($"round #{generation} requested");
-            }
-
-            _lastObservedGeneration = generation;
-            _lastObservedState = state;
         }
 
         private void AppendTrace(string entry)
@@ -126,10 +133,15 @@ namespace AddressablesSample.Game.Presentation
                 _builder.AppendLine($"state           {controller.State}");
                 _builder.AppendLine($"score           {controller.Score}");
                 _builder.AppendLine($"round gen       #{controller.RoundGeneration}");
-                _builder.AppendLine($"last load       {controller.LastRoundLoadMilliseconds:F0} ms");
+                _builder.AppendLine($"last round      {controller.LastRoundLoadMilliseconds:F0} ms");
             }
 
-            _builder.AppendLine($"live handles    {AddressableOwnershipDiagnostics.ActiveOwnerCount}");
+            _builder.AppendLine($"Active load owners  {AddressableOwnershipDiagnostics.ActiveOwnerCount}");
+
+            if (_missedRounds > 0)
+            {
+                _builder.AppendLine($"history gap     {_missedRounds} older round outcome(s) lost");
+            }
 
             if (_trace.Count > 0)
             {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AddressablesSample.Game.Core;
+using AddressablesSample.Game.Presentation;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -112,6 +113,126 @@ namespace AddressablesSample.Game.Tests.EditMode
         }
 
         [Test, Timeout(5000)]
+        public async Task TerminalHistory_InstantSuccessAndFailureBetweenPollsRemainOrdered()
+        {
+            await _harness.ReachReadyAsync();
+            var reader = new List<TerminalRoundRecord>();
+            Assert.That(_harness.Controller.ReadTerminalRounds(0, reader), Is.Zero);
+            Assert.That(reader[0].Outcome, Is.EqualTo(RoundOutcome.Succeeded));
+            var cursor = reader[0].Sequence;
+            reader.Clear();
+
+            _harness.Controller.HandleSelection(true);
+            _harness.Loader.Latest<Texture2D>().CompleteSuccess(_harness.RoundB);
+            await WaitUntilAsync(() => _harness.Controller.State == GameState.Ready);
+            _harness.Controller.HandleSelection(true);
+            _harness.Loader.Latest<Texture2D>().CompleteFailure();
+            await WaitUntilAsync(() => _harness.Controller.State == GameState.Ready);
+
+            Assert.That(_harness.Controller.ReadTerminalRounds(cursor, reader), Is.Zero);
+            Assert.That(reader.Count, Is.EqualTo(2));
+            Assert.That(reader[0].Sequence, Is.EqualTo(cursor + 1));
+            Assert.That(reader[1].Sequence, Is.EqualTo(cursor + 2));
+            Assert.That(reader[0].Outcome, Is.EqualTo(RoundOutcome.Succeeded));
+            Assert.That(reader[1].Outcome, Is.EqualTo(RoundOutcome.Fallback));
+            Assert.That(reader[0].RequestedGeneration, Is.LessThan(reader[1].RequestedGeneration));
+            Assert.That(reader[0].ElapsedMilliseconds, Is.GreaterThanOrEqualTo(0d));
+            Assert.That(reader[1].ElapsedMilliseconds, Is.GreaterThanOrEqualTo(0d));
+            Assert.That(_harness.Controller.ReadTerminalRounds(reader[1].Sequence, new List<TerminalRoundRecord>()), Is.Zero);
+        }
+
+        [Test, Timeout(5000)]
+        public async Task TerminalHistory_SupersededBeforeNewRoundAndStaleCompletionDoesNotAlterDuration()
+        {
+            await _harness.ReachReadyAsync();
+            _harness.Controller.HandleSelection(true);
+            var stale = _harness.Loader.Latest<Texture2D>();
+            var generationA = _harness.Controller.RoundGeneration;
+            _harness.Controller.BeginRound();
+            var generationB = _harness.Controller.RoundGeneration;
+            var current = _harness.Loader.Latest<Texture2D>();
+            current.CompleteSuccess(_harness.RoundC);
+            await WaitUntilAsync(() => _harness.Controller.State == GameState.Ready);
+            var newestDuration = _harness.Controller.LastRoundLoadMilliseconds;
+
+            stale.CompleteSuccess(_harness.RoundB);
+            await _harness.Controller.ActiveRoundTask;
+            var records = new List<TerminalRoundRecord>();
+            _harness.Controller.ReadTerminalRounds(0, records);
+            Assert.That(records.Count, Is.EqualTo(3));
+            Assert.That(records[1].RequestedGeneration, Is.EqualTo(generationA));
+            Assert.That(records[1].Outcome, Is.EqualTo(RoundOutcome.Superseded));
+            Assert.That(records[2].RequestedGeneration, Is.EqualTo(generationB));
+            Assert.That(records[2].Outcome, Is.EqualTo(RoundOutcome.Succeeded));
+            Assert.That(_harness.Controller.LastRoundLoadMilliseconds, Is.EqualTo(newestDuration));
+        }
+
+        [Test, Timeout(5000)]
+        public async Task TerminalHistory_RolloverReportsExactGapAndReadersAreIndependent()
+        {
+            await _harness.ReachReadyAsync();
+            for (var index = 0; index < GameController.RoundHistoryCapacity + 3; index++)
+            {
+                _harness.Controller.HandleSelection(true);
+                _harness.Loader.Latest<Texture2D>().CompleteFailure();
+                await WaitUntilAsync(() => _harness.Controller.State == GameState.Ready);
+            }
+
+            var first = new List<TerminalRoundRecord>();
+            var second = new List<TerminalRoundRecord>();
+            Assert.That(_harness.Controller.ReadTerminalRounds(0, first), Is.EqualTo(4));
+            Assert.That(_harness.Controller.ReadTerminalRounds(0, second), Is.EqualTo(4));
+            Assert.That(first.Count, Is.EqualTo(GameController.RoundHistoryCapacity));
+            Assert.That(second, Is.EqualTo(first));
+            Assert.That(first[0].Sequence, Is.EqualTo(5));
+            Assert.That(first[first.Count - 1].Sequence, Is.EqualTo(20));
+            var repeated = new List<TerminalRoundRecord>();
+            Assert.That(_harness.Controller.ReadTerminalRounds(20, repeated), Is.Zero);
+            Assert.That(repeated, Is.Empty);
+        }
+
+        [Test, Timeout(5000)]
+        public async Task Overlay_PollsBurstsOnceShowsGapAndResetsOnControllerReplacement()
+        {
+            await _harness.ReachReadyAsync();
+            var overlayObject = new GameObject("test-overlay");
+            var overlay = overlayObject.AddComponent<DiagnosticsOverlay>();
+            try
+            {
+                overlay.SampleRoundTrace(_harness.Controller);
+                for (var index = 0; index < GameController.RoundHistoryCapacity + 2; index++)
+                {
+                    _harness.Controller.HandleSelection(true);
+                    _harness.Loader.Latest<Texture2D>().CompleteFailure();
+                    await WaitUntilAsync(() => _harness.Controller.State == GameState.Ready);
+                }
+
+                overlay.SampleRoundTrace(_harness.Controller);
+                Assert.That(overlay.MissedRounds, Is.EqualTo(2));
+                Assert.That(overlay.TraceEntries.Count, Is.EqualTo(6));
+                var newest = overlay.TraceEntries[overlay.TraceEntries.Count - 1];
+                overlay.SampleRoundTrace(_harness.Controller);
+                Assert.That(overlay.MissedRounds, Is.EqualTo(2));
+                Assert.That(overlay.TraceEntries[overlay.TraceEntries.Count - 1], Is.EqualTo(newest));
+
+                using (var replacement = new Harness())
+                {
+                    await replacement.ReachReadyAsync();
+                    overlay.SampleRoundTrace(replacement.Controller);
+                    Assert.That(overlay.MissedRounds, Is.Zero);
+                    Assert.That(overlay.TraceEntries.Count, Is.EqualTo(1));
+                    Assert.That(overlay.TraceEntries[0], Does.Contain("round #1 Succeeded"));
+                    overlay.SampleRoundTrace(null);
+                    Assert.That(overlay.TraceEntries, Is.Empty);
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(overlayObject);
+            }
+        }
+
+        [Test, Timeout(5000)]
         public async Task Miss_PreservesScoreTextureSelectorAndRequestCount()
         {
             await _harness.ReachReadyAsync();
@@ -177,16 +298,22 @@ namespace AddressablesSample.Game.Tests.EditMode
             await _harness.ReachReadyAsync();
             _harness.Controller.HandleSelection(true);
             var replaced = _harness.Loader.At<Texture2D>(3);
+            var staleTask = _harness.Controller.ActiveRoundTask;
 
             replaced.CompleteSuccess(_harness.RoundB);
             _harness.Controller.BeginRound();
             var current = _harness.Loader.At<Texture2D>(4);
             current.CompleteSuccess(_harness.RoundC);
             await WaitUntilAsync(() => _harness.Controller.State == GameState.Ready);
+            var newestDuration = _harness.Controller.LastRoundLoadMilliseconds;
+            await staleTask;
 
             Assert.That(replaced.UnderlyingReleaseCount, Is.EqualTo(1));
             Assert.That(_harness.Target.Texture, Is.SameAs(_harness.RoundC));
             Assert.That(_harness.Events, Does.Not.Contain("apply:round-b"));
+            Assert.That(ReadAllTerminalRounds().Count, Is.EqualTo(3));
+            Assert.That(ReadAllTerminalRounds()[1].Outcome, Is.EqualTo(RoundOutcome.Superseded));
+            Assert.That(_harness.Controller.LastRoundLoadMilliseconds, Is.EqualTo(newestDuration));
         }
 
         [Test, Timeout(5000)]
@@ -246,6 +373,7 @@ namespace AddressablesSample.Game.Tests.EditMode
             Assert.That(_harness.Loader.Requests, Is.Empty);
             Assert.That(_harness.Hud.Status, Is.EqualTo(GameStatusText.FatalError));
             Assert.That(_harness.Diagnostics.Errors.Count, Is.EqualTo(1));
+            Assert.That(ReadAllTerminalRounds(), Is.Empty);
         }
 
         [Test, Timeout(5000)]
@@ -321,6 +449,7 @@ namespace AddressablesSample.Game.Tests.EditMode
             Assert.That(_harness.Factory.DestroyCount, Is.EqualTo(1));
             Assert.That(IndexOf(_harness.Events, "destroy-target"),
                 Is.LessThan(IndexOf(_harness.Events, "release:round-b")));
+            Assert.That(ReadAllTerminalRounds()[1].Outcome, Is.EqualTo(RoundOutcome.Fatal));
         }
 
         [Test, Timeout(5000)]
@@ -342,6 +471,22 @@ namespace AddressablesSample.Game.Tests.EditMode
             Assert.That(fallback.UnderlyingReleaseCount, Is.EqualTo(1));
             Assert.That(prefab.UnderlyingReleaseCount, Is.EqualTo(1));
             Assert.That(_harness.Factory.DestroyCount, Is.EqualTo(1));
+            Assert.That(ReadAllTerminalRounds()[1].Outcome, Is.EqualTo(RoundOutcome.Fatal));
+        }
+
+        [Test, Timeout(5000)]
+        public async Task ReadyTransitionFailure_RecordsOneFatalAfterTextureApplication()
+        {
+            await _harness.ReachReadyAsync();
+            _harness.Target.ThrowWhenEnablingInteraction = true;
+            _harness.Controller.HandleSelection(true);
+            _harness.Loader.Latest<Texture2D>().CompleteSuccess(_harness.RoundB);
+            await WaitUntilAsync(() => _harness.Controller.State == GameState.FatalError);
+
+            var records = ReadAllTerminalRounds();
+            Assert.That(records.Count, Is.EqualTo(2));
+            Assert.That(records[1].Outcome, Is.EqualTo(RoundOutcome.Fatal));
+            Assert.That(_harness.Events, Does.Contain("apply:round-b"));
         }
 
         [Test, Timeout(5000)]
@@ -399,6 +544,7 @@ namespace AddressablesSample.Game.Tests.EditMode
             Assert.That(fallback.UnderlyingReleaseCount, Is.EqualTo(1));
             Assert.That(prefab.UnderlyingReleaseCount, Is.EqualTo(1));
             Assert.That(_harness.Factory.DestroyCount, Is.EqualTo(1));
+            Assert.That(ReadAllTerminalRounds()[0].Outcome, Is.EqualTo(RoundOutcome.Canceled));
         }
 
         [Test, Timeout(5000)]
@@ -421,6 +567,14 @@ namespace AddressablesSample.Game.Tests.EditMode
             Assert.That(fallback.UnderlyingReleaseCount, Is.EqualTo(1));
             Assert.That(prefab.UnderlyingReleaseCount, Is.EqualTo(1));
             Assert.That(_harness.Target.Texture, Is.Null);
+            Assert.That(ReadAllTerminalRounds()[1].Outcome, Is.EqualTo(RoundOutcome.Canceled));
+        }
+
+        private List<TerminalRoundRecord> ReadAllTerminalRounds()
+        {
+            var records = new List<TerminalRoundRecord>();
+            _harness.Controller.ReadTerminalRounds(0, records);
+            return records;
         }
 
         [Test, Timeout(5000)]
