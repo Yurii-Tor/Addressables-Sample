@@ -1,4 +1,37 @@
-# Current milestone: P02 restore the local Addressables workflow after WebGL builds (2026-09-23)
+# Current milestone: P03 scoped generator fingerprints (2026-09-24)
+
+Base: `7b173187d6879d65b606f91eb9da5661af8abd85` (`main`). Branch:
+`codex/p03-generation-fingerprints`. Issue #4 only: compare SHA-256 of files owned by
+consecutive `TestTaskSetup.Run` passes, then retain structural validation.
+
+- [x] Read rules, P03 brief, TaskExecution, source paths and verify P02 is integrated.
+- [x] Define an explicit source inventory and implement bounded capture/diff with focused tests.
+- [x] Run VerifyGeneratedProject twice and inspect generated-source diffs.
+- [x] Run EditMode, PlayMode in both local workflows, fresh desktop content build and restore.
+- [x] Audit ownership/stale-result paths.
+- [x] Review the final diff and prepare the focused P03 commit for PR.
+
+Decision: scope generated asset folders, Addressables source settings/groups/builders/templates,
+source texture importer metadata and EditorBuildSettings. Platform content, caches, logs and player
+outputs are excluded. Report added, removed and changed relative paths; structural validation runs
+after manifest equality. This is consecutive setup idempotency, not cross-machine build reproducibility.
+
+Verification: final-code `Logs/P03-Verify-3.log` and `Logs/P03-Verify-4.log` each report
+74 identical source files and structural pass. Final EditMode 49/49 (`Logs/P03-EditMode-Final.xml`),
+Asset Database PlayMode 4/4 (`Logs/P03-PlayMode-AssetDatabase.xml`), fresh Win64 content with
+24 locations (`Logs/P03-AddressablesBuild-Win64.log`), Existing Build PlayMode 4/4
+(`Logs/P03-PlayMode-ExistingBuild.xml`), restored Local + Use Asset Database
+(`Logs/P03-RestoreLocal.log`) and final structural pass (`Logs/P03-FinalValidation.log`).
+Live Issue #4 has no comments. The first sandboxed Unity attempt stalled on licensing; elevated
+Unity runs completed. Generated YAML has no substantive Git diff; Unity changed line endings
+in the worktree. Ownership/stale-result audit: runtime files did not change; the loader still
+owns and releases each raw handle once, and `GameController.IsCurrentRound` checks state,
+generation, pending-owner identity and target validity before applying a result. The 4 PlayMode
+tests include real fallback and interaction paths. No remaining validation blocker.
+
+---
+
+# Historical milestone: P02 restore the local Addressables workflow after WebGL builds (2026-09-23)
 
 Base: `f3b3dad9f9f835eddd78519c7c2d79fd7d15332d` (`origin/main`). Branch:
 `codex/webgl-build-workflow-cleanup`. Scope: Issue #3 only; preserve the active WebGL target,

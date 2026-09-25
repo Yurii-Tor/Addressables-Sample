@@ -144,8 +144,14 @@ Restore the committed defaults afterwards:
 
 ## 8. Automated validation
 
-Run setup twice to verify idempotency, then run the validator. `ContinuousIntegration.VerifyGeneratedProject`
-does exactly this in one invocation, and is what CI calls:
+`ContinuousIntegration.VerifyGeneratedProject` runs setup twice. After each pass it flushes
+scene/asset writes, then records normalized relative paths and SHA-256 bytes for generated
+assets and `.meta`, Addressables source settings/groups/profiles/builders, supplied texture
+importer `.meta`, and `ProjectSettings/EditorBuildSettings.asset`. Added, removed or changed
+paths fail the CI command with a short path list. It still runs `ProjectValidation.ValidateOrThrow`
+after equal manifests. This gate proves consecutive setup idempotency for that source scope;
+it does not establish cross-machine reproducible builds. Library, Temp, Logs, obj, ServerData
+and build/player output are outside the source scope.
 
 ```powershell
 & $unityPath -batchmode -nographics -quit -projectPath $projectPath `

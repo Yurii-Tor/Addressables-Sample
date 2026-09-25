@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using AddressablesSample.Game.Config;
 using AddressablesSample.Game.Presentation;
@@ -43,18 +44,39 @@ namespace AddressablesSample.Game.Editor
             WebGlProductionRecoveryHarnessFolder + "/StartupFatalConfig.asset";
 
         /// <summary>
-        /// Runs generation twice to prove it is idempotent, then asserts the structural validator.
-        /// A second run that produced different content would fail the validator on the first.
+        /// Compares the source files owned by two consecutive setup passes, then validates structure.
         /// </summary>
         public static void VerifyGeneratedProject()
         {
             Run(() =>
             {
+                var projectRoot = Path.GetDirectoryName(Application.dataPath);
                 TestTaskSetup.Run();
+                FlushGeneratedWrites();
+                var first = GeneratedProjectFingerprints.CaptureGeneratedProject(projectRoot);
                 TestTaskSetup.Run();
+                FlushGeneratedWrites();
+                var second = GeneratedProjectFingerprints.CaptureGeneratedProject(projectRoot);
+                var differences = GeneratedProjectFingerprints.Compare(first, second);
+                if (differences.Count != 0)
+                {
+                    const int displayLimit = 20;
+                    var detail = string.Join("\n- ", differences.Take(displayLimit));
+                    throw new BuildFailedException("Generated source changed on the second setup pass (" +
+                        differences.Count + " path(s)):\n- " + detail +
+                        (differences.Count > displayLimit ? "\n- ..." : string.Empty));
+                }
                 ProjectValidation.ValidateOrThrow();
-                Debug.Log("Generated project is reproducible and structurally valid.");
+                Debug.Log("Generated project: two setup passes have identical scoped SHA-256 manifests (" +
+                          second.Count + " files); structural validation passed.");
             });
+        }
+
+        private static void FlushGeneratedWrites()
+        {
+            EditorSceneManager.SaveOpenScenes();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
         }
 
         /// <summary>
