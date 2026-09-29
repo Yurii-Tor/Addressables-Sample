@@ -1,12 +1,40 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using UnityEngine;
 
 namespace AddressablesSample.Game.Core
 {
+    public enum RoundOutcome
+    {
+        Succeeded,
+        Fallback,
+        Superseded,
+        Canceled,
+        Fatal
+    }
+
+    public readonly struct TerminalRoundRecord
+    {
+        public TerminalRoundRecord(long sequence, int requestedGeneration, RoundOutcome outcome,
+            double elapsedMilliseconds)
+        {
+            Sequence = sequence;
+            RequestedGeneration = requestedGeneration;
+            Outcome = outcome;
+            ElapsedMilliseconds = elapsedMilliseconds;
+        }
+
+        public long Sequence { get; }
+        public int RequestedGeneration { get; }
+        public RoundOutcome Outcome { get; }
+        public double ElapsedMilliseconds { get; }
+    }
+
     public sealed class GameController : IDisposable
     {
+        public const int RoundHistoryCapacity = 16;
         private readonly IGameConfiguration _configuration;
         private readonly IAddressableAssetLoader _loader;
         private readonly IGameHud _hud;
@@ -25,6 +53,10 @@ namespace AddressablesSample.Game.Core
         private int _roundGeneration;
         private Task _activeRoundTask = Task.CompletedTask;
         private readonly Stopwatch _roundStopwatch = new Stopwatch();
+        private readonly TerminalRoundRecord[] _roundHistory = new TerminalRoundRecord[RoundHistoryCapacity];
+        private int _roundHistoryCount;
+        private long _terminalSequence;
+        private int _unsettledRoundGeneration;
 
         public GameController(
             IGameConfiguration configuration,
@@ -50,8 +82,29 @@ namespace AddressablesSample.Game.Core
         /// </summary>
         public int RoundGeneration => _roundGeneration;
 
-        /// <summary>Wall-clock duration of the most recently settled round load.</summary>
+        /// <summary>Elapsed time from request start to the most recent terminal round outcome.</summary>
         public double LastRoundLoadMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Appends retained records newer than the caller's cursor in sequence order. Returns the
+        /// number already evicted before the oldest retained record. Readers own their cursors.
+        /// </summary>
+        public long ReadTerminalRounds(long afterSequence, List<TerminalRoundRecord> destination)
+        {
+            if (destination == null)
+            {
+                throw new ArgumentNullException(nameof(destination));
+            }
+
+            var oldest = _terminalSequence - _roundHistoryCount + 1;
+            var missed = _roundHistoryCount == 0 ? 0 : Math.Max(0, oldest - afterSequence - 1);
+            for (var sequence = Math.Max(afterSequence + 1, oldest); sequence <= _terminalSequence; sequence++)
+            {
+                destination.Add(_roundHistory[(int)((sequence - 1) % RoundHistoryCapacity)]);
+            }
+
+            return missed;
+        }
 
         public async Task InitializeAsync()
         {
@@ -114,17 +167,20 @@ namespace AddressablesSample.Game.Core
                 return;
             }
 
+            RecordTerminalRound(RoundOutcome.Superseded);
             var generation = ++_roundGeneration;
             var replaced = _pendingRound;
             _pendingRound = null;
             replaced?.Dispose();
+
+            _unsettledRoundGeneration = generation;
+            _roundStopwatch.Restart();
 
             try
             {
                 _state = GameState.LoadingRound;
                 _target.SetInteractionEnabled(false);
                 _hud.SetStatus(GameStatusText.LoadingImage);
-                _roundStopwatch.Restart();
 
                 var runtimeKey = _selector.Next();
                 var load = _loader.StartLoad<Texture2D>(runtimeKey);
@@ -150,6 +206,7 @@ namespace AddressablesSample.Game.Core
             }
 
             _state = GameState.Disposed;
+            RecordTerminalRound(RoundOutcome.Canceled);
             _roundGeneration++;
 
             DisposeAndClear(ref _pendingRound);
@@ -288,7 +345,6 @@ namespace AddressablesSample.Game.Core
         private void ApplySuccessfulRound(IAddressableLoad<Texture2D> load, Texture2D texture)
         {
             _pendingRound = null;
-            CaptureRoundDuration();
 
             try
             {
@@ -297,6 +353,7 @@ namespace AddressablesSample.Game.Core
                 _currentRound = load;
                 previous?.Dispose();
                 EnterReady(false);
+                RecordTerminalRound(RoundOutcome.Succeeded);
             }
             catch (Exception exception)
             {
@@ -308,7 +365,6 @@ namespace AddressablesSample.Game.Core
         private void ApplyFallbackRound(IAddressableLoad<Texture2D> load, Exception loadException)
         {
             _pendingRound = null;
-            CaptureRoundDuration();
             load?.Dispose();
 
             try
@@ -317,6 +373,7 @@ namespace AddressablesSample.Game.Core
                 DisposeAndClear(ref _currentRound);
                 _diagnostics.LogWarning("Round texture load failed; the retained fallback is in use.", loadException);
                 EnterReady(true);
+                RecordTerminalRound(RoundOutcome.Fallback);
             }
             catch (Exception exception)
             {
@@ -354,15 +411,21 @@ namespace AddressablesSample.Game.Core
             return _target != null && _target.IsValid;
         }
 
-        private void CaptureRoundDuration()
+        private void RecordTerminalRound(RoundOutcome outcome)
         {
-            if (!_roundStopwatch.IsRunning)
+            if (_unsettledRoundGeneration == 0)
             {
                 return;
             }
 
             _roundStopwatch.Stop();
-            LastRoundLoadMilliseconds = _roundStopwatch.Elapsed.TotalMilliseconds;
+            var duration = _roundStopwatch.Elapsed.TotalMilliseconds;
+            LastRoundLoadMilliseconds = duration;
+            var sequence = ++_terminalSequence;
+            _roundHistory[(int)((sequence - 1) % RoundHistoryCapacity)] =
+                new TerminalRoundRecord(sequence, _unsettledRoundGeneration, outcome, duration);
+            _roundHistoryCount = Math.Min(_roundHistoryCount + 1, RoundHistoryCapacity);
+            _unsettledRoundGeneration = 0;
         }
 
         private void EnterFatal(string message, Exception exception = null)
@@ -373,6 +436,7 @@ namespace AddressablesSample.Game.Core
             }
 
             _state = GameState.FatalError;
+            RecordTerminalRound(RoundOutcome.Fatal);
             _roundGeneration++;
             DisposeAndClear(ref _pendingRound);
             DestroyTarget();

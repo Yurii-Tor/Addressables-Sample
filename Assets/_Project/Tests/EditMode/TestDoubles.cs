@@ -166,6 +166,7 @@ namespace AddressablesSample.Game.Tests.EditMode
         public int FlashCount { get; private set; }
         public Texture2D Texture { get; private set; }
         public Texture2D ThrowWhenApplying { get; set; }
+        public bool ThrowWhenEnablingInteraction { get; set; }
 
         public void ApplyTexture(Texture2D texture)
         {
@@ -180,6 +181,11 @@ namespace AddressablesSample.Game.Tests.EditMode
 
         public void SetInteractionEnabled(bool enabled)
         {
+            if (enabled && ThrowWhenEnablingInteraction)
+            {
+                throw new InvalidOperationException("Synthetic Ready transition failure.");
+            }
+
             InteractionEnabled = enabled;
             _events?.Add("interaction:" + enabled);
         }

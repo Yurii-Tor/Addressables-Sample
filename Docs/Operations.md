@@ -102,6 +102,17 @@ loading, round loading, `Ready`, and finally either `FatalError` or `Disposed`.
 - Failure to load a required startup asset enters `Unable to start. See Console.` and
   performs full cleanup.
 
+The diagnostics overlay polls a retained history of the last 16 terminal round outcomes.
+Each record has a sequence, requested generation, elapsed milliseconds, and one outcome:
+`Succeeded` after texture application and Ready, `Fallback` after fallback application and
+Ready, `Superseded` when a newer round invalidates it, `Canceled` on disposal, or `Fatal` on
+a round failure that prevents Ready. Startup failure creates no round record. A controller
+generation increment during teardown is only an invalidation token, not a new round.
+Polling readers keep independent sequence cursors; polling never removes records. The overlay
+shows unseen outcomes in order, never duplicates them, and reports a history gap when more
+than 16 outcomes arrive before its next poll. Its trace and cursor reset for a new controller.
+`Active load owners` counts retained application load owners, not downloads or memory usage.
+
 ## 6. Use Asset Database local emulation
 
 Addressables `4.0.1` no longer ships the legacy **Simulate Groups** play-mode script. Its
@@ -371,8 +382,8 @@ target before releasing the prefab, round, and fallback owners.
 The implementation contains no `WaitForCompletion`, `Task.Wait`, synchronous `.Result`, or
 busy waiting. The only runtime `async void` method is the Unity `Start` lifecycle boundary.
 
-`DiagnosticsOverlay` observes the controller by polling and never mutates it, so the
-controller carries no presentation coupling for the sake of the overlay.
+`DiagnosticsOverlay` observes the controller by polling its terminal history and never mutates
+it, so the controller carries no presentation coupling for the sake of the overlay.
 
 ## 11. Cancellation semantics
 

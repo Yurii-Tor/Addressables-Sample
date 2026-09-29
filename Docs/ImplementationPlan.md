@@ -1,4 +1,48 @@
-# Current milestone: P03 scoped generator fingerprints (2026-09-24)
+# Current milestone: P04 polling round telemetry (2026-09-25)
+
+Base: `bf4d0015d12052fb739e143585ac9252666ac003` (`main`). Branch:
+`codex/p04-polling-round-telemetry`. Issue #5 only: retain terminal round facts for polling
+diagnostics, including rounds completed between overlay updates.
+
+- [x] Read repository rules, P04 brief, TaskExecution and source map; confirm P03 in base.
+- [x] Add bounded terminal history, independent polling cursor and focused regressions.
+- [x] Run generated fingerprint/structural gate, EditMode and both PlayMode workflows.
+- [x] Build fresh desktop content, restore local defaults and audit ownership/stale results.
+- [x] Build and inspect local WebGL player.
+- [x] Review the scoped diff and prepare the focused commit and PR.
+
+Decision: a begun round has one unsettled generation independent of the pending load owner.
+Terminal recording stops its stopwatch, updates newest duration and advances a monotonic
+sequence exactly once. The overlay reads retained records without removing them; a persistent
+gap count reports outcomes lost before its cursor. UI layout remains unchanged except truthful
+outcomes and the Active load owners label. RoundGeneration remains an invalidation token.
+
+Verification: Issue #5 is open with no comments. `Logs/P04-Verify-Elevated.log` reports two
+identical 74-file SHA-256 manifests and structural pass. Final EditMode: 54/54
+(`Logs/P04-EditMode-Final2.xml`); Asset Database PlayMode: 4/4
+(`Logs/P04-PlayMode-AssetDatabase.xml`); fresh desktop Addressables build: 24 locations
+(`Logs/P04-AddressablesBuild-Win64.log`); Existing Build PlayMode: 4/4
+(`Logs/P04-PlayMode-ExistingBuild.xml`). Final desktop Local + Use Asset Database restore
+(`Logs/P04-RestoreDesktopFinal.log`) and structural validation
+(`Logs/P04-FinalValidation-Desktop.log`) passed. The local WebGL player at
+`Builds/WebGL/P04-PollingTelemetry/index.html` built successfully
+(`Logs/P04-WebGLBuild-Final.log`); browser at 1280x720 showed Ready, initial and subsequent
+Succeeded trace, Active load owners 3, score/texture change on hit, and Ready after reload,
+with no browser errors. The sandboxed first Unity attempt stalled in licensing; elevated
+Unity runs completed. Unity serialization/URP/UnityConnect incidental diffs were inspected
+and restored; no generated content or ProjectSettings source change is part of P04.
+
+Ownership/stale audit: the loader remains the sole raw-handle owner and release path. The
+controller still clears `_pendingRound` before disposal/presentation and checks state,
+generation, owner identity and target validity before applying a completion. Terminal history
+contains only value facts, owns no handle, and does not affect score/input. Supersession records
+the old duration before restart; late completions cannot append records or replace the newest
+duration. Disposal/fatal settle only an actually unsettled round. No remaining validation
+blocker.
+
+---
+
+# Historical milestone: P03 scoped generator fingerprints (2026-09-24)
 
 Base: `7b173187d6879d65b606f91eb9da5661af8abd85` (`main`). Branch:
 `codex/p03-generation-fingerprints`. Issue #4 only: compare SHA-256 of files owned by
