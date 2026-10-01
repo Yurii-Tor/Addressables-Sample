@@ -46,6 +46,64 @@ namespace AddressablesSample.Game.Tests.EditMode
         }
 
         [Test, Timeout(5000)]
+        public async Task InitializeAgainWhileFallbackPending_DoesNotDuplicateLoadsOrResetHud()
+        {
+            var initialization = _harness.Controller.InitializeAsync();
+            await WaitUntilAsync(() => _harness.Loader.Requests.Count == 1);
+            var fallback = _harness.Loader.At<Texture2D>(0);
+            var eventCountBeforeReentry = _harness.Events.Count;
+
+            await _harness.Controller.InitializeAsync();
+
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.LoadingStartupFallback));
+            Assert.That(_harness.Loader.Requests.Count, Is.EqualTo(1));
+            Assert.That(_harness.Controller.Score, Is.Zero);
+            Assert.That(_harness.Hud.Score, Is.Zero);
+            Assert.That(_harness.Hud.Status, Is.EqualTo(GameStatusText.LoadingGame));
+            Assert.That(_harness.Events.Count, Is.EqualTo(eventCountBeforeReentry));
+
+            fallback.CompleteSuccess(_harness.Fallback);
+            await WaitUntilAsync(() => _harness.Loader.Requests.Count == 2);
+            _harness.Loader.At<GameObject>(1).CompleteSuccess(_harness.Prefab);
+            await WaitUntilAsync(() => _harness.Loader.Requests.Count == 3);
+            _harness.Loader.At<Texture2D>(2).CompleteSuccess(_harness.RoundA);
+            await initialization;
+
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.Ready));
+            Assert.That(_harness.Loader.Requests.Count, Is.EqualTo(3));
+            Assert.That(_harness.Factory.CreateCount, Is.EqualTo(1));
+        }
+
+        [Test, Timeout(5000)]
+        public async Task InitializeAgainWhilePrefabPending_DoesNotDuplicateLoadsOrResetHud()
+        {
+            var initialization = _harness.Controller.InitializeAsync();
+            await WaitUntilAsync(() => _harness.Loader.Requests.Count == 1);
+            _harness.Loader.At<Texture2D>(0).CompleteSuccess(_harness.Fallback);
+            await WaitUntilAsync(() => _harness.Loader.Requests.Count == 2);
+            var prefab = _harness.Loader.At<GameObject>(1);
+            var eventCountBeforeReentry = _harness.Events.Count;
+
+            await _harness.Controller.InitializeAsync();
+
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.LoadingStartupPrefab));
+            Assert.That(_harness.Loader.Requests.Count, Is.EqualTo(2));
+            Assert.That(_harness.Controller.Score, Is.Zero);
+            Assert.That(_harness.Hud.Score, Is.Zero);
+            Assert.That(_harness.Hud.Status, Is.EqualTo(GameStatusText.LoadingGame));
+            Assert.That(_harness.Events.Count, Is.EqualTo(eventCountBeforeReentry));
+
+            prefab.CompleteSuccess(_harness.Prefab);
+            await WaitUntilAsync(() => _harness.Loader.Requests.Count == 3);
+            _harness.Loader.At<Texture2D>(2).CompleteSuccess(_harness.RoundA);
+            await initialization;
+
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.Ready));
+            Assert.That(_harness.Loader.Requests.Count, Is.EqualTo(3));
+            Assert.That(_harness.Factory.CreateCount, Is.EqualTo(1));
+        }
+
+        [Test, Timeout(5000)]
         public async Task CorrectSelection_IncrementsOnceAndSwapsBeforeReleasingPrevious()
         {
             await _harness.ReachReadyAsync();
@@ -273,20 +331,89 @@ namespace AddressablesSample.Game.Tests.EditMode
         }
 
         [Test, Timeout(5000)]
-        public async Task PendingReplacement_InvalidatesOldSuccessAndFailure()
+        public async Task RoundStartThrows_AppliesFallbackBeforeReleasingDisplayedRoundAndRecordsFallback()
+        {
+            await _harness.ReachReadyAsync();
+            var displayedRound = _harness.Loader.At<Texture2D>(2);
+            _harness.Loader.ThrowForKey = Harness.RoundBKey;
+            _harness.Events.Clear();
+
+            _harness.Controller.HandleSelection(true);
+
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.Ready));
+            Assert.That(_harness.Controller.Score, Is.EqualTo(1));
+            Assert.That(_harness.Hud.Score, Is.EqualTo(1));
+            Assert.That(_harness.Hud.Status, Is.EqualTo(GameStatusText.ReadyWithFallback));
+            Assert.That(_harness.Target.Texture, Is.SameAs(_harness.Fallback));
+            Assert.That(_harness.Target.InteractionEnabled, Is.True);
+            Assert.That(_harness.Loader.Requests.Count, Is.EqualTo(3));
+            Assert.That(displayedRound.DisposeCallCount, Is.EqualTo(1));
+            Assert.That(displayedRound.UnderlyingReleaseCount, Is.EqualTo(1));
+            Assert.That(_harness.Loader.At<Texture2D>(0).UnderlyingReleaseCount, Is.Zero);
+            Assert.That(_harness.Loader.At<GameObject>(1).UnderlyingReleaseCount, Is.Zero);
+            Assert.That(_harness.Diagnostics.Warnings.Count, Is.EqualTo(1));
+            Assert.That(IndexOf(_harness.Events, "apply:fallback"),
+                Is.LessThan(IndexOf(_harness.Events, "release:round-a")));
+
+            var records = ReadAllTerminalRounds();
+            Assert.That(records.Count, Is.EqualTo(2));
+            Assert.That(records[0].Outcome, Is.EqualTo(RoundOutcome.Succeeded));
+            Assert.That(records[1].Outcome, Is.EqualTo(RoundOutcome.Fallback));
+        }
+
+        [Test, Timeout(5000)]
+        public async Task FaultedRoundCompletion_AppliesFallbackBeforeReleasingDisplayedRound()
+        {
+            await _harness.ReachReadyAsync();
+            var displayedRound = _harness.Loader.At<Texture2D>(2);
+            _harness.Controller.HandleSelection(true);
+            var failedRound = _harness.Loader.At<Texture2D>(3);
+            var roundContinuation = _harness.Controller.ActiveRoundTask;
+
+            failedRound.FaultCompletion(new InvalidOperationException("Synthetic faulted task."));
+            Assert.That(failedRound.Completion.IsFaulted, Is.True);
+            await roundContinuation;
+
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.Ready));
+            Assert.That(_harness.Controller.Score, Is.EqualTo(1));
+            Assert.That(_harness.Hud.Score, Is.EqualTo(1));
+            Assert.That(_harness.Hud.Status, Is.EqualTo(GameStatusText.ReadyWithFallback));
+            Assert.That(_harness.Target.Texture, Is.SameAs(_harness.Fallback));
+            Assert.That(_harness.Target.InteractionEnabled, Is.True);
+            Assert.That(failedRound.DisposeCallCount, Is.EqualTo(1));
+            Assert.That(failedRound.UnderlyingReleaseCount, Is.EqualTo(1));
+            Assert.That(displayedRound.DisposeCallCount, Is.EqualTo(1));
+            Assert.That(displayedRound.UnderlyingReleaseCount, Is.EqualTo(1));
+            Assert.That(_harness.Loader.At<Texture2D>(0).UnderlyingReleaseCount, Is.Zero);
+            Assert.That(_harness.Loader.At<GameObject>(1).UnderlyingReleaseCount, Is.Zero);
+            Assert.That(_harness.Diagnostics.Warnings.Count, Is.EqualTo(1));
+            Assert.That(IndexOf(_harness.Events, "apply:fallback"),
+                Is.LessThan(IndexOf(_harness.Events, "release:round-a")));
+
+            var records = ReadAllTerminalRounds();
+            Assert.That(records.Count, Is.EqualTo(2));
+            Assert.That(records[0].Outcome, Is.EqualTo(RoundOutcome.Succeeded));
+            Assert.That(records[1].Outcome, Is.EqualTo(RoundOutcome.Fallback));
+        }
+
+        [Test, Timeout(5000)]
+        public async Task PendingReplacement_CanceledOldLoadCannotChangeLatestResult()
         {
             await _harness.ReachReadyAsync();
             _harness.Controller.HandleSelection(true);
             var replaced = _harness.Loader.At<Texture2D>(3);
+            var replacedTask = _harness.Controller.ActiveRoundTask;
 
             _harness.Controller.BeginRound();
             var current = _harness.Loader.At<Texture2D>(4);
+            var currentTask = _harness.Controller.ActiveRoundTask;
             Assert.That(replaced.UnderlyingReleaseCount, Is.EqualTo(1));
 
             replaced.CompleteSuccess(_harness.RoundB);
             current.CompleteSuccess(_harness.RoundC);
-            await WaitUntilAsync(() => _harness.Controller.State == GameState.Ready);
+            await Task.WhenAll(replacedTask, currentTask);
 
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.Ready));
             Assert.That(_harness.Target.Texture, Is.SameAs(_harness.RoundC));
             Assert.That(_harness.Diagnostics.Warnings, Is.Empty);
             Assert.That(_harness.Events, Does.Not.Contain("apply:round-b"));
@@ -389,6 +516,25 @@ namespace AddressablesSample.Game.Tests.EditMode
             Assert.That(_harness.Controller.State, Is.EqualTo(GameState.FatalError));
             Assert.That(_harness.Loader.Requests.Count, Is.EqualTo(1));
             Assert.That(fallback.UnderlyingReleaseCount, Is.EqualTo(1));
+            Assert.That(fallback.Completion.Status, Is.EqualTo(TaskStatus.RanToCompletion));
+            Assert.That(ReadAllTerminalRounds(), Is.Empty);
+        }
+
+        [Test, Timeout(5000)]
+        public async Task FallbackStartThrows_EntersFatalWithoutStartingLaterLoadsOrRecordingRound()
+        {
+            _harness.Loader.ThrowForKey = Harness.FallbackKey;
+
+            await _harness.Controller.InitializeAsync();
+
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.FatalError));
+            Assert.That(_harness.Hud.Status, Is.EqualTo(GameStatusText.FatalError));
+            Assert.That(_harness.Loader.Requests, Is.Empty);
+            Assert.That(_harness.Factory.CreateCount, Is.Zero);
+            Assert.That(_harness.Controller.Score, Is.Zero);
+            Assert.That(_harness.Hud.Score, Is.Zero);
+            Assert.That(_harness.Diagnostics.Errors.Count, Is.EqualTo(1));
+            Assert.That(ReadAllTerminalRounds(), Is.Empty);
         }
 
         [Test, Timeout(5000)]
@@ -407,6 +553,54 @@ namespace AddressablesSample.Game.Tests.EditMode
             Assert.That(_harness.Controller.State, Is.EqualTo(GameState.FatalError));
             Assert.That(prefab.UnderlyingReleaseCount, Is.EqualTo(1));
             Assert.That(fallback.UnderlyingReleaseCount, Is.EqualTo(1));
+            Assert.That(prefab.DisposeCallCount, Is.EqualTo(1));
+            Assert.That(prefab.Completion.Status, Is.EqualTo(TaskStatus.RanToCompletion));
+            Assert.That(fallback.DisposeCallCount, Is.EqualTo(1));
+            Assert.That(ReadAllTerminalRounds(), Is.Empty);
+        }
+
+        [Test, Timeout(5000)]
+        public async Task PrefabStartThrows_ReleasesRetainedFallbackAndStopsStartup()
+        {
+            _harness.Loader.ThrowForKey = Harness.PrefabKey;
+            var initialization = _harness.Controller.InitializeAsync();
+            await WaitUntilAsync(() => _harness.Loader.Requests.Count == 1);
+            var fallback = _harness.Loader.At<Texture2D>(0);
+
+            fallback.CompleteSuccess(_harness.Fallback);
+            await initialization;
+
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.FatalError));
+            Assert.That(_harness.Loader.Requests.Count, Is.EqualTo(1));
+            Assert.That(fallback.DisposeCallCount, Is.EqualTo(1));
+            Assert.That(fallback.UnderlyingReleaseCount, Is.EqualTo(1));
+            Assert.That(_harness.Factory.CreateCount, Is.Zero);
+            Assert.That(ReadAllTerminalRounds(), Is.Empty);
+        }
+
+        [Test, Timeout(5000)]
+        public async Task FaultedPrefabCompletion_ReleasesStartupOwnersAndStopsBeforeRoundLoad()
+        {
+            var initialization = _harness.Controller.InitializeAsync();
+            await WaitUntilAsync(() => _harness.Loader.Requests.Count == 1);
+            var fallback = _harness.Loader.At<Texture2D>(0);
+            fallback.CompleteSuccess(_harness.Fallback);
+            await WaitUntilAsync(() => _harness.Loader.Requests.Count == 2);
+            var prefab = _harness.Loader.At<GameObject>(1);
+
+            prefab.FaultCompletion(new InvalidOperationException("Synthetic faulted task."));
+            Assert.That(prefab.Completion.IsFaulted, Is.True);
+            await initialization;
+
+            Assert.That(_harness.Controller.State, Is.EqualTo(GameState.FatalError));
+            Assert.That(_harness.Hud.Status, Is.EqualTo(GameStatusText.FatalError));
+            Assert.That(_harness.Loader.Requests.Count, Is.EqualTo(2));
+            Assert.That(prefab.DisposeCallCount, Is.EqualTo(1));
+            Assert.That(prefab.UnderlyingReleaseCount, Is.EqualTo(1));
+            Assert.That(fallback.DisposeCallCount, Is.EqualTo(1));
+            Assert.That(fallback.UnderlyingReleaseCount, Is.EqualTo(1));
+            Assert.That(_harness.Factory.CreateCount, Is.Zero);
+            Assert.That(ReadAllTerminalRounds(), Is.Empty);
         }
 
         [Test, Timeout(5000)]

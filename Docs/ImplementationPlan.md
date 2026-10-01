@@ -1,4 +1,51 @@
-# Current milestone: P04 polling round telemetry (2026-09-25)
+# Current milestone: P09 recovery branch tests (2026-10-01)
+
+Base: 9a97f1e925e781c681bb01aaef62145b45f551b8 (verified origin/main). Branch:
+codex/p09-recovery-tests. Issue #6 only: cover startup/round synchronous start throws,
+faulted completion tasks and initialization reentry. P01-P04 are present in the base.
+
+- [x] Read checkout/execution instructions, P09 source map and live Issue #6 (open; no comments).
+- [x] Add behavior tests for fallback, prefab and round start throws; startup/round task faults;
+  and startup reentry.
+- [x] Keep production controller and loader unchanged; distinguish a faulted task from a
+  completed Failed result.
+- [x] Clarify SourceAuditTests scope in code and Operations.
+- [x] Run targeted/full EditMode, generated fingerprints/structure, both PlayMode workflows,
+  fresh desktop content build, restore and final structural validation.
+- [x] Audit owner release order, round outcomes and stale continuation handling.
+- [x] Review the final scoped diff for the focused branch change.
+
+Decision: ManualAddressableLoad.FaultCompletion sets a real TaskCompletionSource exception
+and leaves release to the controller. CompleteFailure remains a completed task carrying a
+Failed result. Round recovery tests verify fallback is applied before the displayed texture is
+released and exactly one P04 terminal outcome is recorded. Startup faults verify acquired
+owners are released once and no round record or later load starts.
+
+Verification: final targeted GameControllerTests 33/33 (Logs/P09-TargetedEditMode-Final.xml);
+final full EditMode 61/61 (Logs/P09-EditMode-Final.xml); VerifyGeneratedProject reports two
+identical scoped SHA-256 manifests for 74 files and structural pass
+(Logs/P09-VerifyGeneratedProject.log); PlayMode Asset Database 4/4
+(Logs/P09-PlayMode-AssetDatabase.xml); fresh StandaloneWindows64 Addressables content,
+24 locations (Logs/P09-AddressablesBuild-Win64.log); PlayMode Existing Build 4/4
+(Logs/P09-PlayMode-ExistingBuild.xml); Local + Use Asset Database restored and final
+structural validation passed (Logs/P09-RestoreLocalAssetDatabase.log,
+Logs/P09-FinalStructuralValidation.log). Unity processes exited 0; tests had no failures or
+skips. Expected diagnostics were the deliberate missing-key fallback and documented Unity
+licensing startup messages.
+
+Ownership/stale audit: runtime ownership code is unchanged. Startup fatal paths clear and
+release acquired owners once. Failed-result, task-fault and synchronous round-start paths apply
+fallback before releasing the displayed owner, restore Ready, preserve score and record one
+Fallback outcome. Current round continuations still require LoadingRound, matching generation
+and pending-owner identity, plus a valid target; existing stale-work tests await captured tasks.
+SourceAuditTests remains a narrow exact-spelling guard, not semantic proof.
+
+WebGL was not rerun because the changes affect only EditMode tests/test doubles and verification
+documentation, not runtime, UI or build behavior. No validation blockers.
+
+---
+
+# Historical milestone: P04 polling round telemetry (2026-09-25)
 
 Base: `bf4d0015d12052fb739e143585ac9252666ac003` (`main`). Branch:
 `codex/p04-polling-round-telemetry`. Issue #5 only: retain terminal round facts for polling
