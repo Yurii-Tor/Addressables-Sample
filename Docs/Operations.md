@@ -199,6 +199,11 @@ Unity exception or error during the run fails the suite. Unity licensing-service
 diagnostics may still appear in a successful batch log and should be assessed separately
 from test output.
 
+SourceAuditTests is a narrow text-pattern guard for the exact wait/result and release
+spellings listed in the test. It is not a C# semantic analysis and does not prove that every
+Task.Wait() or .Result variation is absent. Keep this check proportional; do not treat it
+as an ownership or runtime-behavior proof.
+
 `RealLoader_InvalidRoundKey_AppliesRealFallbackAndRemainsPlayable` still requires a valid
 startup catalog because the target prefab and fallback are genuine Addressables. If it
 reports `No Location found for Key=game/fallback`, the fallback logic has not failed: no

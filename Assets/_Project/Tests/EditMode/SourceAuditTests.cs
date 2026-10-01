@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace AddressablesSample.Game.Tests.EditMode
 {
+    // This checks selected source spellings only; it is not a semantic proof of every wait or result access.
     public sealed class SourceAuditTests
     {
         [Test]

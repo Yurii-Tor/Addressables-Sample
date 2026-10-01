@@ -42,6 +42,16 @@ namespace AddressablesSample.Game.Tests.EditMode
             _completion.TrySetResult(AddressableLoadResult<T>.Succeeded(asset));
         }
 
+        public void FaultCompletion(Exception exception)
+        {
+            if (exception == null)
+            {
+                throw new ArgumentNullException(nameof(exception));
+            }
+
+            _completion.TrySetException(exception);
+        }
+
         public void CompleteFailure(Exception exception = null)
         {
             ReleaseOnce();
