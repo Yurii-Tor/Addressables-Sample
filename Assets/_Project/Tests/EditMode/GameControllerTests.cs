@@ -366,6 +366,7 @@ namespace AddressablesSample.Game.Tests.EditMode
         {
             await _harness.ReachReadyAsync();
             var displayedRound = _harness.Loader.At<Texture2D>(2);
+            _harness.Events.Clear();
             _harness.Controller.HandleSelection(true);
             var failedRound = _harness.Loader.At<Texture2D>(3);
             var roundContinuation = _harness.Controller.ActiveRoundTask;
@@ -387,8 +388,9 @@ namespace AddressablesSample.Game.Tests.EditMode
             Assert.That(_harness.Loader.At<Texture2D>(0).UnderlyingReleaseCount, Is.Zero);
             Assert.That(_harness.Loader.At<GameObject>(1).UnderlyingReleaseCount, Is.Zero);
             Assert.That(_harness.Diagnostics.Warnings.Count, Is.EqualTo(1));
-            Assert.That(IndexOf(_harness.Events, "apply:fallback"),
-                Is.LessThan(IndexOf(_harness.Events, "release:round-a")));
+            var fallbackApplied = IndexOf(_harness.Events, "apply:fallback");
+            var displayedRoundReleased = IndexOf(_harness.Events, "release:round-a");
+            Assert.That(fallbackApplied, Is.LessThan(displayedRoundReleased));
 
             var records = ReadAllTerminalRounds();
             Assert.That(records.Count, Is.EqualTo(2));

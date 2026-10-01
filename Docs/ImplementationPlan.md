@@ -21,17 +21,29 @@ Failed result. Round recovery tests verify fallback is applied before the displa
 released and exactly one P04 terminal outcome is recorded. Startup faults verify acquired
 owners are released once and no round record or later load starts.
 
-Verification: final targeted GameControllerTests 33/33 (Logs/P09-TargetedEditMode-Final.xml);
-final full EditMode 61/61 (Logs/P09-EditMode-Final.xml); VerifyGeneratedProject reports two
+Verification after the correction: targeted GameControllerTests 33/33 and full EditMode
+61/61, both Unity exit 0 with no failures, skips or inconclusive tests
+(Logs/P09-TargetedEditMode-Correction.xml,
+Logs/P09-TargetedEditMode-Correction.log, Logs/P09-EditMode-Correction.xml,
+Logs/P09-EditMode-Correction.log).
+A temporary local mutation that released the displayed round before applying fallback made
+only FaultedRoundCompletion_AppliesFallbackBeforeReleasingDisplayedRound fail at the order
+assertion (expected less than 6, got 7; Logs/P09-FaultedRound-OrderMutation.xml,
+Logs/P09-FaultedRound-OrderMutation.log).
+The mutation was removed; GameController.cs matches its pre-mutation SHA-256
+03C74E4026D7AF9858D3E81672F982B98230D247A130BF44E331151CF3B8C898 and has no runtime diff.
+
+The previously passed generated verification, PlayMode, desktop build, restore and structural
+gates remain applicable: the permanent correction changes only an EditMode test and this plan
+entry; runtime and generated assets match the state those gates covered. Evidence: two
 identical scoped SHA-256 manifests for 74 files and structural pass
 (Logs/P09-VerifyGeneratedProject.log); PlayMode Asset Database 4/4
 (Logs/P09-PlayMode-AssetDatabase.xml); fresh StandaloneWindows64 Addressables content,
 24 locations (Logs/P09-AddressablesBuild-Win64.log); PlayMode Existing Build 4/4
-(Logs/P09-PlayMode-ExistingBuild.xml); Local + Use Asset Database restored and final
-structural validation passed (Logs/P09-RestoreLocalAssetDatabase.log,
-Logs/P09-FinalStructuralValidation.log). Unity processes exited 0; tests had no failures or
-skips. Expected diagnostics were the deliberate missing-key fallback and documented Unity
-licensing startup messages.
+(Logs/P09-PlayMode-ExistingBuild.xml); Local + Use Asset Database restore and final structural
+validation passed (Logs/P09-RestoreLocalAssetDatabase.log,
+Logs/P09-FinalStructuralValidation.log). Expected diagnostics were the deliberate missing-key
+fallback and documented Unity licensing startup messages.
 
 Ownership/stale audit: runtime ownership code is unchanged. Startup fatal paths clear and
 release acquired owners once. Failed-result, task-fault and synchronous round-start paths apply
