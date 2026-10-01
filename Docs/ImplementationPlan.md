@@ -14,7 +14,7 @@ Codex setup:
 - [x] Add deterministic loader/ownership, startup, rejection, failure recovery, A/B and teardown regressions.
 - [x] Document controls, outcomes, timing policy and simulation limits in Operations.
 - [x] Run the Unity verification matrix, desktop content build and local WebGL browser checks.
-- [ ] Finish source/ownership review, create focused commit, push, open PR, and wait for CI on final HEAD.
+- [x] Finish source/ownership review, focused commit, push, open PR #21, and verify the required CI checks.
 
 Decision: use `Time.unscaledDeltaTime` in the bootstrapper-owned command component for delay and A→B sequencing. Tests advance the same scheduler manually; no sleeps or worker-thread Unity calls. Keep the existing controller and polling overlay contract, with one simulation-status label in the existing diagnostics overlay.
 
@@ -26,6 +26,8 @@ Verification:
 - Local WebGL build is 12 MB in `Builds/WebGL/P05-controlled-rounds`. Codex in-app Browser at 1280×720 loaded the player; the browser-control surface does not report an engine version. All observed player and Addressables requests returned HTTP 200. The only console warning was the deliberate simulated-failure warning; no error-level browser logs were recorded.
 - Browser flow: slow deliveries completed in 2071 ms and 2085 ms with the displayed texture retained and score unchanged; simulated failure applied fallback, then a normal hit recovered at score 1; A→B recorded round #6 `Superseded` and #7 `Succeeded`, with score still 1. Screenshots are in ignored `Logs/P05-WebGL-*.png`.
 - Ownership audit: the delayed wrapper holds one inner operation and releases it once; synthetic failure acquires no Addressables handle; A is invalidated before B and cannot publish after release. The existing hostile late-success PlayMode test remains unchanged.
+- GitHub Actions run #19 on commit 8f5cf0a passed both required jobs: EditMode + PlayMode and Generated-project validation. PR #21 targets main at the verified base commit.
+
 
 Blockers: none confirmed.
 ---
