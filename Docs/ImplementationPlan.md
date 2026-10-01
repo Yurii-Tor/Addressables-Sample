@@ -1,4 +1,35 @@
-# Current milestone: P09 recovery branch tests (2026-10-01)
+# Current milestone: P05 controlled demo scenarios (2026-10-01)
+
+Codex setup:
+- Model/effort: Luna 6 / Max; mode: Default.
+- Base: verified `origin/main` at `47ac2886f5c86476bdd868128c973d512c58f680`.
+- Branch: `codex/p05-controlled-rounds` in a managed worktree.
+- Scope: GitHub Issue #7 only; P04 and P09 are present in the base.
+- Authorized: tests, focused commit, push and PR; no merge, deploy, release, tag or issue closure.
+- Exit: verified PR with source-state/evidence matrix; report unavailable gates honestly.
+
+- [x] Read repo/local preservation rules, P05 brief, live Issue #7/comments, TaskExecution and source map.
+- [x] Verify remote main, no product release tags, isolated worktree, and P04/P09 code dependencies.
+- [x] Implement round-key-scoped one-shot simulations, unscaled delay, temporary hotkeys and bootstrapper teardown.
+- [x] Add deterministic loader/ownership, startup, rejection, failure recovery, A/B and teardown regressions.
+- [x] Document controls, outcomes, timing policy and simulation limits in Operations.
+- [x] Run the Unity verification matrix, desktop content build and local WebGL browser checks.
+- [ ] Finish source/ownership review, create focused commit, push, open PR, and wait for CI on final HEAD.
+
+Decision: use `Time.unscaledDeltaTime` in the bootstrapper-owned command component for delay and A→B sequencing. Tests advance the same scheduler manually; no sleeps or worker-thread Unity calls. Keep the existing controller and polling overlay contract, with one simulation-status label in the existing diagnostics overlay.
+
+Verification:
+- Targeted P05 EditMode: 11/11 passed (`Logs/P05-DemoScenario-EditMode.xml`). Full EditMode: 72/72 passed (`Logs/P05-EditMode.xml`).
+- `VerifyGeneratedProject` passed with identical 74-file scoped SHA-256 manifests, including after WebGL target restoration (`Logs/P05-VerifyGeneratedProject.log`, `Logs/P05-PostWebGL-VerifyGeneratedProject.log`).
+- PlayMode Asset Database: 5/5 passed (`Logs/P05-PlayMode-AssetDatabase.xml`). Existing Build: 5/5 passed (`Logs/P05-PlayMode-ExistingBuild.xml`).
+- Fresh StandaloneWindows64 Addressables content built with 24 locations (`Logs/P05-AddressablesBuild-Win64.log`). Local + Asset Database and StandaloneWindows64 were restored after WebGL (`Logs/P05-RestoreDesktopAfterWebGL.log`).
+- Local WebGL build is 12 MB in `Builds/WebGL/P05-controlled-rounds`. Codex in-app Browser at 1280×720 loaded the player; the browser-control surface does not report an engine version. All observed player and Addressables requests returned HTTP 200. The only console warning was the deliberate simulated-failure warning; no error-level browser logs were recorded.
+- Browser flow: slow deliveries completed in 2071 ms and 2085 ms with the displayed texture retained and score unchanged; simulated failure applied fallback, then a normal hit recovered at score 1; A→B recorded round #6 `Superseded` and #7 `Succeeded`, with score still 1. Screenshots are in ignored `Logs/P05-WebGL-*.png`.
+- Ownership audit: the delayed wrapper holds one inner operation and releases it once; synthetic failure acquires no Addressables handle; A is invalidated before B and cannot publish after release. The existing hostile late-success PlayMode test remains unchanged.
+
+Blockers: none confirmed.
+---
+# Historical milestone: P09 recovery branch tests (2026-10-01)
 
 Base: 9a97f1e925e781c681bb01aaef62145b45f551b8 (verified origin/main). Branch:
 codex/p09-recovery-tests. Issue #6 only: cover startup/round synchronous start throws,
