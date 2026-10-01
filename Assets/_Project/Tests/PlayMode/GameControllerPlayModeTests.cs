@@ -130,6 +130,50 @@ namespace AddressablesSample.Game.Tests.PlayMode
             LogAssert.NoUnexpectedReceived();
         }
 
+        [UnityTest, Timeout(30000)]
+        public IEnumerator BootstrapperTeardownDuringScenarioA_DoesNotStartBOrMutateAfterDispose()
+        {
+            var fixture = new DelayedFixture();
+            _fixtureForCleanup = fixture;
+            var bootstrapperObject = new GameObject("P05 Scenario Bootstrapper Destruction Test");
+            var bootstrapper = bootstrapperObject.AddComponent<GameBootstrapper>();
+            var commands = bootstrapperObject.AddComponent<DemoScenarioCommands>();
+            var scenarioLoader = new DemoScenarioAssetLoader(
+                fixture.Loader,
+                new object[] { "initial", "round-a", "round-b" },
+                commands.DelayAsync,
+                () => fixture.Controller != null && fixture.Controller.CanAcceptScenarioCommands);
+            fixture.Controller = new GameController(
+                new DefinitionConfiguration(new GameDefinition(
+                    "prefab",
+                    "fallback",
+                    new object[] { "initial", "round-a", "round-b" })),
+                scenarioLoader,
+                fixture.Hud,
+                fixture.Factory,
+                fixture.Diagnostics);
+            bootstrapper.InstallScenarioServicesForTests(fixture.Controller, scenarioLoader, commands);
+            yield return CompleteInitialization(fixture);
+
+            Assert.That(commands.TryStartReplacement(), Is.True);
+            var taskA = fixture.Controller.ActiveRoundTask;
+            var loadA = fixture.Loader.At<Texture2D>(3);
+            loadA.CompleteSuccess(fixture.RoundA);
+            yield return WaitForCondition(() => commands.PendingDelayCount == 1, "Scenario A did not enter its delivery delay.");
+
+            UnityEngine.Object.Destroy(bootstrapperObject);
+            yield return null;
+            Assert.That(fixture.Controller.State, Is.EqualTo(GameState.Disposed));
+            var mutationsAfterDestroy = fixture.Target.MutationCount + fixture.Hud.MutationCount;
+            commands.AdvanceTime(5f);
+            yield return WaitForCondition(() => taskA.IsCompleted, "Scenario A did not settle after bootstrapper teardown.");
+
+            Assert.That(fixture.Loader.Requests.Count, Is.EqualTo(4), "B must not start after teardown.");
+            Assert.That(fixture.Target.MutationCount + fixture.Hud.MutationCount, Is.EqualTo(mutationsAfterDestroy));
+            AssertEveryRequestReleasedOnce(fixture.Loader);
+            LogAssert.NoUnexpectedReceived();
+        }
+
         private static DelayedFixture CreateDelayedController()
         {
             var fixture = new DelayedFixture();
