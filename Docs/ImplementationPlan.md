@@ -22,8 +22,15 @@
 - [x] Build and exercise a local WebGL player at 360×640, 640×360, 960×600, and 1280×720;
   capture screenshots and browser/console evidence.
 - [ ] Create the ignored retained-checkout handoff bundle with source provenance and verified hashes.
-- [ ] Commit focused files, push, open PR against `main`, verify required CI on the final head,
-  attach the PR, and leave the managed worktree available for orchestrator review.
+- [x] Commit focused files, push, and open [PR #22](https://github.com/Yurii-Tor/Addressables-Sample/pull/22) against `main`,
+  attach it, and leave the managed worktree available for review.
+- [x] Run GitHub CI on the implementation head and one retry; generated-project validation
+  passed both times.
+- [ ] Obtain a passing EditMode + PlayMode GitHub CI result for the final PR head. Both
+  attempts of [run `37528385243`](https://github.com/Yurii-Tor/Addressables-Sample/actions/runs/37528385243) failed before Unity test results were produced.
+  The latest job pulled `unityci/editor:ubuntu-6000.3.21f1-linux-il2cpp-3`, then the game-ci runner
+  child process exited with code 1. No Unity test report was produced, and available output
+  does not establish a root cause.
 
 Decision: use the existing uGUI/EventSystem/Input System UI module and one generated safe-area
 panel. Current-position `GraphicRaycaster` checks consume presses over buttons (including disabled
