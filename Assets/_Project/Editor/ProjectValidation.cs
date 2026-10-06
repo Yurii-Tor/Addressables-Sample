@@ -12,6 +12,8 @@ using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AddressableAssets.ResourceProviders;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -288,11 +290,11 @@ namespace AddressablesSample.Game.Editor
             {
                 var scene = EditorSceneManager.OpenScene(TestTaskPaths.GameScene, OpenSceneMode.Single);
                 var roots = scene.GetRootGameObjects();
-                var expectedRootNames = new[] { "Directional Light", "Game Systems", "HUD", "Main Camera" };
+                var expectedRootNames = new[] { "Directional Light", "EventSystem", "Game Systems", "HUD", "Main Camera" };
                 if (!roots.Select(root => root.name).OrderBy(name => name, StringComparer.Ordinal)
                         .SequenceEqual(expectedRootNames))
                 {
-                    errors.Add("Game scene must contain exactly the four generated root objects.");
+                    errors.Add("Game scene must contain exactly the five generated root objects.");
                 }
 
                 foreach (var root in roots)
@@ -305,7 +307,17 @@ namespace AddressablesSample.Game.Editor
                 var input = Components<PointerSelectionInput>(roots);
                 var cameras = Components<Camera>(roots);
                 var canvases = Components<Canvas>(roots);
+                var canvasScalers = Components<CanvasScaler>(roots);
+                var graphicRaycasters = Components<GraphicRaycaster>(roots);
                 var texts = Components<Text>(roots);
+                var controlsViews = Components<DemoControlsView>(roots);
+                var eventSystems = Components<EventSystem>(roots);
+                var uiInputModules = Components<InputSystemUIInputModule>(roots);
+                var buttons = Components<Button>(roots);
+                var images = Components<Image>(roots);
+                var scrollRects = Components<ScrollRect>(roots);
+                var rectMasks = Components<RectMask2D>(roots);
+                var contentSizeFitters = Components<ContentSizeFitter>(roots);
                 var lights = Components<Light>(roots).Where(light => light.type == LightType.Directional).ToArray();
 
                 RequireCount(bootstrapper.Length, 1, "Game scene GameBootstrapper count", errors);
@@ -313,15 +325,38 @@ namespace AddressablesSample.Game.Editor
                 RequireCount(input.Length, 1, "Game scene PointerSelectionInput count", errors);
                 RequireCount(cameras.Length, 1, "Game scene Camera count", errors);
                 RequireCount(canvases.Length, 1, "Game scene Canvas count", errors);
-                RequireCount(texts.Length, 2, "Game scene Text count", errors);
+                RequireCount(canvasScalers.Length, 1, "Game scene CanvasScaler count", errors);
+                RequireCount(graphicRaycasters.Length, 1, "Game scene GraphicRaycaster count", errors);
+                RequireCount(texts.Length, 7, "Game scene Text count", errors);
+                RequireCount(controlsViews.Length, 1, "Game scene DemoControlsView count", errors);
+                RequireCount(eventSystems.Length, 1, "Game scene EventSystem count", errors);
+                RequireCount(uiInputModules.Length, 1, "Game scene InputSystemUIInputModule count", errors);
+                RequireCount(buttons.Length, 4, "Game scene Button count", errors);
+                RequireCount(images.Length, 7, "Game scene Image count", errors);
+                RequireCount(scrollRects.Length, 1, "Game scene ScrollRect count", errors);
+                RequireCount(rectMasks.Length, 1, "Game scene RectMask2D count", errors);
+                RequireCount(contentSizeFitters.Length, 1, "Game scene ContentSizeFitter count", errors);
                 RequireCount(lights.Length, 1, "Game scene directional Light count", errors);
 
                 var systemsRoot = roots.SingleOrDefault(root => root.name == "Game Systems");
                 var hudRoot = roots.SingleOrDefault(root => root.name == "HUD");
+                var safeArea = hudRoot == null ? null : hudRoot.transform.Find("Safe Area");
+                var panel = safeArea == null ? null : safeArea.Find("Demo Controls Panel");
+                var viewport = panel == null ? null : panel.Find("Diagnostics Viewport");
+                var toggleObject = safeArea == null ? null : safeArea.Find("Toggle Diagnostics");
+                var eventSystemRoot = roots.SingleOrDefault(root => root.name == "EventSystem");
                 if (systemsRoot == null ||
                     !DirectChildNames(systemsRoot.transform).SequenceEqual(new[] { "Post FX", "Target Spawn" }))
                 {
                     errors.Add("Game Systems must contain only the Post FX and Target Spawn children.");
+                }
+
+                if (eventSystemRoot == null || eventSystemRoot.transform.childCount != 0 ||
+                    eventSystems.Length != 1 || eventSystems[0].gameObject != eventSystemRoot ||
+                    uiInputModules.Length != 1 || uiInputModules[0].gameObject != eventSystemRoot ||
+                    eventSystemRoot.GetComponent<StandaloneInputModule>() != null)
+                {
+                    errors.Add("The generated EventSystem root must contain one EventSystem and one InputSystemUIInputModule.");
                 }
 
                 var overlays = Components<DiagnosticsOverlay>(roots);
@@ -330,6 +365,99 @@ namespace AddressablesSample.Game.Editor
                 {
                     AssertObjectReference(
                         overlays[0], "_bootstrapper", bootstrapper[0], "DiagnosticsOverlay bootstrapper", errors);
+                    if (viewport != null)
+                    {
+                        var diagnosticsText = viewport.Find("Diagnostics Text");
+                        AssertObjectReference(
+                            overlays[0],
+                            "_contentText",
+                            diagnosticsText == null ? null : diagnosticsText.GetComponent<Text>(),
+                            "DiagnosticsOverlay text",
+                            errors);
+                    }
+                }
+
+                if (canvasScalers.Length == 1 &&
+                    (canvasScalers[0].uiScaleMode != CanvasScaler.ScaleMode.ConstantPixelSize ||
+                     !Mathf.Approximately(canvasScalers[0].scaleFactor, 1f) ||
+                     !Mathf.Approximately(canvasScalers[0].referencePixelsPerUnit, 100f)))
+                {
+                    errors.Add("Generated CanvasScaler must keep readable constant-size UI controls.");
+                }
+
+                if (eventSystems.Length == 1 && uiInputModules.Length == 1 &&
+                    uiInputModules[0].gameObject != eventSystems[0].gameObject)
+                {
+                    errors.Add("InputSystemUIInputModule must be attached to the generated EventSystem.");
+                }
+
+                if (graphicRaycasters.Length == 1 && input.Length == 1)
+                {
+                    AssertObjectReference(
+                        input[0], "_uiRaycaster", graphicRaycasters[0], "PointerSelectionInput UI raycaster", errors);
+                }
+
+                if (controlsViews.Length == 1 && bootstrapper.Length == 1 && safeArea != null &&
+                    panel != null && viewport != null && toggleObject != null)
+                {
+                    var safeAreaRect = safeArea as RectTransform;
+                    var panelRect = panel as RectTransform;
+                    var diagnosticsText = viewport.Find("Diagnostics Text");
+                    var slowButton = panel.Find("Slow load");
+                    var failureButton = panel.Find("Simulate failure");
+                    var replacementButton = panel.Find("Replace request");
+                    var toggleLabel = toggleObject.Find("Label");
+                    AssertObjectReference(controlsViews[0], "_bootstrapper", bootstrapper[0], "DemoControlsView bootstrapper", errors);
+                    AssertObjectReference(controlsViews[0], "_safeAreaRoot", safeAreaRect, "DemoControlsView safe area", errors);
+                    AssertObjectReference(controlsViews[0], "_controlsPanel", panelRect, "DemoControlsView panel", errors);
+                    AssertObjectReference(controlsViews[0], "_slowLoadButton", slowButton == null ? null : slowButton.GetComponent<Button>(), "Slow load button", errors);
+                    AssertObjectReference(controlsViews[0], "_simulateFailureButton", failureButton == null ? null : failureButton.GetComponent<Button>(), "Simulate failure button", errors);
+                    AssertObjectReference(controlsViews[0], "_replaceRequestButton", replacementButton == null ? null : replacementButton.GetComponent<Button>(), "Replace request button", errors);
+                    AssertObjectReference(controlsViews[0], "_toggleDiagnosticsButton", toggleObject.GetComponent<Button>(), "Diagnostics toggle button", errors);
+                    AssertObjectReference(controlsViews[0], "_toggleLabel", toggleLabel == null ? null : toggleLabel.GetComponent<Text>(), "Diagnostics toggle label", errors);
+                }
+
+                if (viewport != null && scrollRects.Length == 1)
+                {
+                    var diagnosticsText = viewport.Find("Diagnostics Text");
+                    if (scrollRects[0].gameObject != viewport.gameObject ||
+                        scrollRects[0].viewport != viewport ||
+                        diagnosticsText == null || scrollRects[0].content != diagnosticsText ||
+                        scrollRects[0].horizontal || !scrollRects[0].vertical ||
+                        scrollRects[0].movementType != ScrollRect.MovementType.Clamped)
+                    {
+                        errors.Add("Diagnostics ScrollRect must bound vertical history around its generated text.");
+                    }
+                }
+
+                if (texts.Any(text => text.raycastTarget))
+                {
+                    errors.Add("Generated HUD and button label Text graphics must not consume pointer raycasts.");
+                }
+
+                if (safeArea != null && panel != null && viewport != null && toggleObject != null)
+                {
+                    var backdropImage = safeArea.Find("Backdrop")?.GetComponent<Image>();
+                    var panelImage = panel.GetComponent<Image>();
+                    var viewportImage = viewport.GetComponent<Image>();
+                    var toggleImage = toggleObject.GetComponent<Image>();
+                    if (backdropImage == null || backdropImage.raycastTarget ||
+                        panelImage == null || panelImage.raycastTarget ||
+                        viewportImage == null || !viewportImage.raycastTarget ||
+                        toggleImage == null || !toggleImage.raycastTarget)
+                    {
+                        errors.Add("Decorative UI graphics must pass world input; interactive viewport and toggle graphics must raycast.");
+                    }
+
+                    foreach (var button in buttons)
+                    {
+                        var image = button.GetComponent<Image>();
+                        if (image == null || !image.raycastTarget || button.targetGraphic != image ||
+                            button.onClick.GetPersistentEventCount() != 0)
+                        {
+                            errors.Add("Every generated Button needs its raycastable target Image and runtime-only listeners.");
+                        }
+                    }
                 }
 
                 var volumes = Components<Volume>(roots);
@@ -353,10 +481,38 @@ namespace AddressablesSample.Game.Editor
                     }
                 }
 
-                var expectedHudChildren = new[] { "Score", "Status" };
+                var expectedHudChildren = new[] { "Safe Area" };
                 if (hudRoot == null || !DirectChildNames(hudRoot.transform).SequenceEqual(expectedHudChildren))
                 {
-                    errors.Add("HUD must contain only the Score and Status children.");
+                    errors.Add("HUD must contain only the generated Safe Area child.");
+                }
+
+                var expectedSafeAreaChildren = new[]
+                {
+                    "Backdrop", "Demo Controls Panel", "Score", "Status", "Toggle Diagnostics"
+                };
+                if (safeArea == null || !DirectChildNames(safeArea).SequenceEqual(expectedSafeAreaChildren))
+                {
+                    errors.Add("HUD Safe Area must contain only the generated background, status, score, panel, and diagnostics toggle.");
+                }
+
+                var expectedPanelChildrenInOrder = new[]
+                {
+                    "Slow load", "Simulate failure", "Replace request", "Diagnostics Viewport"
+                };
+                if (panel == null || !DirectChildNamesInOrder(panel).SequenceEqual(expectedPanelChildrenInOrder))
+                {
+                    errors.Add("Demo Controls Panel must reconcile three scenario buttons followed by the diagnostics viewport.");
+                }
+
+                if (viewport == null || !DirectChildNames(viewport).SequenceEqual(new[] { "Diagnostics Text" }))
+                {
+                    errors.Add("Diagnostics Viewport must contain only the generated Diagnostics Text.");
+                }
+
+                if (toggleObject == null || !DirectChildNames(toggleObject).SequenceEqual(new[] { "Label" }))
+                {
+                    errors.Add("Toggle Diagnostics must contain only its generated label.");
                 }
 
                 if (Components<TargetView>(roots).Length != 0 ||
@@ -807,6 +963,17 @@ namespace AddressablesSample.Game.Editor
             }
 
             return names.OrderBy(name => name, StringComparer.Ordinal).ToArray();
+        }
+
+        private static string[] DirectChildNamesInOrder(Transform parent)
+        {
+            var names = new string[parent.childCount];
+            for (var index = 0; index < parent.childCount; index++)
+            {
+                names[index] = parent.GetChild(index).name;
+            }
+
+            return names;
         }
 
         private static void ValidateNoMissingScripts(GameObject root, string context, ICollection<string> errors)

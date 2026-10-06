@@ -410,7 +410,7 @@ namespace AddressablesSample.Game.Editor
             var spawn = new GameObject("Target Spawn").transform;
             spawn.SetParent(systems.transform, false);
             var input = systems.AddComponent<PointerSelectionInput>();
-            input.Configure(camera, ~0, 100f);
+            input.Configure(camera, null, ~0, 100f);
 
             var canvasObject = new GameObject(
                 "HUD",

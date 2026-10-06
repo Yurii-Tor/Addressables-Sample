@@ -6,7 +6,8 @@
     "AddressablesSample.Game.Editor",
     "Unity.Addressables",
     "Unity.Addressables.Editor",
-    "Unity.ResourceManager"
+    "Unity.ResourceManager",
+    "UnityEngine.UI"
   ],
   "includePlatforms": [
     "Editor"

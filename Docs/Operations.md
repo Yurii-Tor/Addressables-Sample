@@ -81,16 +81,25 @@ Open `Assets/_Project/Scenes/Game.unity` and enter Play Mode.
   texture, or active round request.
 - Normal click/tap selection is accepted only while the controller is in `Ready`; it is
   disabled during startup and round loading.
-- Press <kbd>~</kbd> or <kbd>F1</kbd> to toggle the diagnostics overlay.
-- With the game canvas focused after startup, the temporary P05 development controls are:
-  - <kbd>1</kbd> delays the next configured round texture by 2 seconds of unscaled time.
+- The touch-friendly panel provides **Slow load**, **Simulate failure**, **Replace request**,
+  and **Show/Hide diagnostics** buttons. The visible `[1]`, `[2]`, and `[3]` key labels match
+  the optional keyboard shortcuts; <kbd>~</kbd> and <kbd>F1</kbd> also toggle diagnostics.
+- The controls sit in the upper-left in landscape and along the bottom in portrait, inside the
+  device safe area. The panel reserves a compact footprint, and its bounded diagnostics history
+  scrolls when its contents exceed the available height. Verify the layout at 360×640, 640×360,
+  960×600, and 1280×720; preserve clear access to the cube and readable wrapped scenario labels.
+- UI buttons and the diagnostics scroll viewport consume pointer presses before world selection,
+  including when a scenario button is disabled. Decorative status, score, and backdrop graphics
+  pass input through. Hiding the panel restores world input across its former area.
+- Scenario controls become available after the first `Ready` state and disable while a command
+  is active, after fatal startup, and after disposal. A repeated scenario command is rejected
+  while one is active. Diagnostics label simulation behavior and its limits:
+  - **Slow load** (`1`) delays the next configured round texture by 2 seconds of unscaled time.
     It holds the displayed texture and does not measure network latency.
-  - <kbd>2</kbd> returns a synthetic failure for the next configured round texture. The
-    controller applies the retained checkerboard fallback; no transport failure is measured.
-  - <kbd>3</kbd> starts round A with the same delay, then starts round B after 0.15 seconds
-    of unscaled time. B supersedes A; the score does not change.
-  - Scenario controls work only after the first `Ready` state. A repeated scenario command
-    is rejected while one is active. The overlay labels each simulation and its limits.
+  - **Simulate failure** (`2`) returns a synthetic failure for the next configured round texture.
+    The controller applies the retained checkerboard fallback; no transport failure is measured.
+  - **Replace request** (`3`) starts round A with the same delay, then starts round B after
+    0.15 seconds of unscaled time. B supersedes A; the score does not change.
 
 The target is instantiated once from the Addressable prefab. Round changes update its
 renderer through a `MaterialPropertyBlock`; the shared material is never instantiated or
@@ -129,9 +138,9 @@ than 16 outcomes arrive before its next poll. Its trace and cursor reset for a n
 Addressables `4.0.1` no longer ships the legacy **Simulate Groups** play-mode script. Its
 supported local-emulation replacement is **Use Asset Database (fastest)**. This project
 configures that mode with a `0.25` second simulated load delay so loading is observable.
-Normal click/tap selection remains disabled while a round is loading. P05 adds a separate
-development hotkey sequence for controlled A→B supersession; the delayed-owner PlayMode tests
-remain an independent regression for hostile late success.
+Normal click/tap selection remains disabled while a round is loading. The visible P05 scenario
+buttons and optional shortcuts provide controlled A→B supersession; the delayed-owner PlayMode
+tests remain an independent regression for hostile late success.
 
 Choose **AddressablesSample > Game > Addressables > Use Asset Database**, or run:
 

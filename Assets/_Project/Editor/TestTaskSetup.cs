@@ -12,6 +12,8 @@ using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -585,7 +587,8 @@ namespace AddressablesSample.Game.Editor
                 "Main Camera",
                 "Directional Light",
                 "Game Systems",
-                "HUD"
+                "HUD",
+                "EventSystem"
             };
             foreach (var unexpected in scene.GetRootGameObjects().Where(root => !expectedRootNames.Contains(root.name)))
             {
@@ -603,6 +606,14 @@ namespace AddressablesSample.Game.Editor
             var cameraData = GetOrAddSingle<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>(cameraObject);
             cameraData.renderPostProcessing = true;
             cameraData.antialiasing = UnityEngine.Rendering.Universal.AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+
+            var eventSystemObject = GetOrCreateRoot(
+                scene,
+                "EventSystem",
+                typeof(EventSystem),
+                typeof(InputSystemUIInputModule));
+            GetOrAddSingle<EventSystem>(eventSystemObject);
+            GetOrAddSingle<InputSystemUIInputModule>(eventSystemObject);
 
             // Ambient light is authored here rather than left at the scene default so the target
             // reads clearly against the solid background on every machine that opens the project.
@@ -639,34 +650,155 @@ namespace AddressablesSample.Game.Editor
                 typeof(Canvas),
                 typeof(CanvasScaler),
                 typeof(GraphicRaycaster),
-                typeof(HudView));
+                typeof(HudView),
+                typeof(DemoControlsView));
             var canvas = GetOrAddSingle<Canvas>(canvasObject);
-            GetOrAddSingle<GraphicRaycaster>(canvasObject);
+            var graphicRaycaster = GetOrAddSingle<GraphicRaycaster>(canvasObject);
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = GetOrAddSingle<CanvasScaler>(canvasObject);
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = 1f;
+            scaler.referencePixelsPerUnit = 100f;
 
-            var status = GetOrCreateText("Status", canvasObject.transform, TextAnchor.UpperCenter, 34);
-            SetRect(status.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
-                new Vector2(-500f, -100f), new Vector2(500f, -30f));
+            var safeAreaObject = GetOrCreateUIChild(canvasObject.transform, "Safe Area", typeof(RectTransform));
+            var safeArea = (RectTransform)safeAreaObject.transform;
+            SetRect(safeArea, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+            var backdrop = GetOrCreateImage(safeArea, "Backdrop", new Color(0.04f, 0.06f, 0.1f, 0f), false);
+            SetRect(backdrop.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+            var status = GetOrCreateText("Status", safeArea, TextAnchor.UpperCenter, 18);
+            SetRect(status.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(12f, -92f), new Vector2(-12f, -48f));
             status.text = "Loading game...";
+            status.horizontalOverflow = HorizontalWrapMode.Wrap;
+            status.verticalOverflow = VerticalWrapMode.Truncate;
 
-            var score = GetOrCreateText("Score", canvasObject.transform, TextAnchor.UpperLeft, 32);
+            var score = GetOrCreateText("Score", safeArea, TextAnchor.UpperLeft, 18);
             SetRect(score.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(30f, -100f), new Vector2(400f, -30f));
+                new Vector2(12f, -42f), new Vector2(150f, -8f));
             score.text = "Score: 0";
-            RemoveUnexpectedChildren(canvasObject.transform, new HashSet<string> { "Status", "Score" });
+
+            var panelObject = GetOrCreateUIChild(
+                safeArea,
+                "Demo Controls Panel",
+                typeof(Image),
+                typeof(VerticalLayoutGroup));
+            var panelRect = (RectTransform)panelObject.transform;
+            var panelImage = GetOrAddSingle<Image>(panelObject);
+            panelImage.color = new Color(0.025f, 0.04f, 0.065f, 0.94f);
+            panelImage.raycastTarget = false;
+            var panelLayout = GetOrAddSingle<VerticalLayoutGroup>(panelObject);
+            panelLayout.padding = new RectOffset(8, 8, 8, 8);
+            panelLayout.spacing = 4f;
+            panelLayout.childAlignment = TextAnchor.UpperLeft;
+            panelLayout.childControlWidth = true;
+            panelLayout.childControlHeight = true;
+            panelLayout.childForceExpandWidth = true;
+            panelLayout.childForceExpandHeight = false;
+
+            var slowButton = CreateScenarioButton(
+                panelObject.transform,
+                "Slow load",
+                "Slow load  [1]\n2s simulated delivery");
+            var failureButton = CreateScenarioButton(
+                panelObject.transform,
+                "Simulate failure",
+                "Simulate failure  [2]\nSynthetic failure; uses fallback");
+            var replacementButton = CreateScenarioButton(
+                panelObject.transform,
+                "Replace request",
+                "Replace request  [3]\nB supersedes delayed A");
+
+            var viewportObject = GetOrCreateUIChild(
+                panelObject.transform,
+                "Diagnostics Viewport",
+                typeof(Image),
+                typeof(RectMask2D),
+                typeof(ScrollRect),
+                typeof(LayoutElement));
+            var viewportImage = GetOrAddSingle<Image>(viewportObject);
+            viewportImage.color = new Color(0.01f, 0.02f, 0.035f, 0.72f);
+            viewportImage.raycastTarget = true;
+            GetOrAddSingle<RectMask2D>(viewportObject);
+            var viewportLayout = GetOrAddSingle<LayoutElement>(viewportObject);
+            viewportLayout.minHeight = 52f;
+            viewportLayout.preferredHeight = 58f;
+            viewportLayout.flexibleHeight = 1f;
+
+            var diagnosticsText = GetOrCreateText(
+                "Diagnostics Text",
+                viewportObject.transform,
+                TextAnchor.UpperLeft,
+                14);
+            SetRect(diagnosticsText.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(6f, -4f), new Vector2(-6f, -4f));
+            diagnosticsText.color = new Color(0.72f, 0.94f, 0.78f, 1f);
+            diagnosticsText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            diagnosticsText.verticalOverflow = VerticalWrapMode.Overflow;
+            diagnosticsText.supportRichText = false;
+            var textContentFitter = GetOrAddSingle<ContentSizeFitter>(diagnosticsText.gameObject);
+            textContentFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            textContentFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var historyScroll = GetOrAddSingle<ScrollRect>(viewportObject);
+            historyScroll.content = diagnosticsText.rectTransform;
+            historyScroll.viewport = (RectTransform)viewportObject.transform;
+            historyScroll.horizontal = false;
+            historyScroll.vertical = true;
+            historyScroll.movementType = ScrollRect.MovementType.Clamped;
+            historyScroll.inertia = true;
+            historyScroll.scrollSensitivity = 24f;
+
+            var toggleObject = GetOrCreateUIChild(safeArea, "Toggle Diagnostics", typeof(Image), typeof(Button));
+            var toggleImage = GetOrAddSingle<Image>(toggleObject);
+            toggleImage.color = new Color(0.08f, 0.33f, 0.42f, 1f);
+            var toggleButton = GetOrAddSingle<Button>(toggleObject);
+            ConfigureButton(toggleButton, toggleImage);
+            var toggleRect = (RectTransform)toggleObject.transform;
+            toggleRect.anchorMin = Vector2.one;
+            toggleRect.anchorMax = Vector2.one;
+            toggleRect.pivot = Vector2.one;
+            toggleRect.sizeDelta = new Vector2(164f, 44f);
+            toggleRect.anchoredPosition = new Vector2(-12f, -8f);
+            var toggleLabel = GetOrCreateText("Label", toggleObject.transform, TextAnchor.MiddleCenter, 15);
+            SetRect(toggleLabel.rectTransform, Vector2.zero, Vector2.one,
+                new Vector2(6f, 3f), new Vector2(-6f, -3f));
+            toggleLabel.color = Color.white;
+            toggleLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
+            toggleLabel.verticalOverflow = VerticalWrapMode.Truncate;
+
+            RemoveUnexpectedChildren(safeArea, new HashSet<string>
+            {
+                "Backdrop", "Demo Controls Panel", "Score", "Status", "Toggle Diagnostics"
+            });
+            RemoveUnexpectedChildren(panelObject.transform, new HashSet<string>
+            {
+                "Diagnostics Viewport", "Replace request", "Simulate failure", "Slow load"
+            });
+            RemoveUnexpectedChildren(viewportObject.transform, new HashSet<string> { "Diagnostics Text" });
+            RemoveUnexpectedChildren(toggleObject.transform, new HashSet<string> { "Label" });
+            RemoveUnexpectedChildren(canvasObject.transform, new HashSet<string> { "Safe Area" });
 
             var hud = GetOrAddSingle<HudView>(canvasObject);
             hud.Configure(status, score);
             var input = GetOrAddSingle<PointerSelectionInput>(systems);
-            input.Configure(camera, ~0, 100f);
+            input.Configure(camera, graphicRaycaster, ~0, 100f);
             var bootstrapper = GetOrAddSingle<GameBootstrapper>(systems);
             bootstrapper.Configure(config, hud, input, spawn);
             var overlay = GetOrAddSingle<DiagnosticsOverlay>(systems);
-            overlay.Configure(bootstrapper, true);
+            overlay.Configure(bootstrapper, diagnosticsText);
+            var controlsView = GetOrAddSingle<DemoControlsView>(canvasObject);
+            controlsView.Configure(
+                bootstrapper,
+                safeArea,
+                panelRect,
+                slowButton,
+                failureButton,
+                replacementButton,
+                toggleButton,
+                toggleLabel,
+                true);
 
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, TestTaskPaths.GameScene))
@@ -707,6 +839,102 @@ namespace AddressablesSample.Game.Editor
             text.color = Color.white;
             text.raycastTarget = false;
             return text;
+        }
+
+        private static Image GetOrCreateImage(
+            Transform parent,
+            string name,
+            Color color,
+            bool raycastTarget)
+        {
+            var gameObject = GetOrCreateUIChild(parent, name, typeof(Image));
+            var image = GetOrAddSingle<Image>(gameObject);
+            image.color = color;
+            image.raycastTarget = raycastTarget;
+            return image;
+        }
+
+        private static Button CreateScenarioButton(Transform parent, string name, string label)
+        {
+            var gameObject = GetOrCreateUIChild(parent, name, typeof(Image), typeof(Button), typeof(LayoutElement));
+            var image = GetOrAddSingle<Image>(gameObject);
+            image.color = Color.white;
+            image.raycastTarget = true;
+            var button = GetOrAddSingle<Button>(gameObject);
+            ConfigureButton(button, image);
+            var layout = GetOrAddSingle<LayoutElement>(gameObject);
+            layout.minHeight = 49f;
+            layout.preferredHeight = 49f;
+            layout.flexibleHeight = 0f;
+            var text = GetOrCreateText("Label", gameObject.transform, TextAnchor.MiddleLeft, 14);
+            SetRect(text.rectTransform, Vector2.zero, Vector2.one,
+                new Vector2(9f, 3f), new Vector2(-9f, -3f));
+            text.text = label;
+            text.color = Color.white;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.supportRichText = false;
+            return button;
+        }
+
+        private static void ConfigureButton(Button button, Image image)
+        {
+            button.targetGraphic = image;
+            button.transition = Selectable.Transition.ColorTint;
+            button.interactable = true;
+            var navigation = button.navigation;
+            navigation.mode = Navigation.Mode.None;
+            button.navigation = navigation;
+            var colors = button.colors;
+            colors.normalColor = new Color(0.1f, 0.24f, 0.31f, 1f);
+            colors.highlightedColor = new Color(0.16f, 0.38f, 0.48f, 1f);
+            colors.pressedColor = new Color(0.04f, 0.18f, 0.24f, 1f);
+            colors.selectedColor = colors.highlightedColor;
+            colors.disabledColor = new Color(0.22f, 0.25f, 0.28f, 1f);
+            button.colors = colors;
+        }
+
+        private static GameObject GetOrCreateUIChild(Transform parent, string name, params Type[] components)
+        {
+            var matches = DirectChildren(parent).Where(child => child.name == name).ToList();
+            var gameObject = matches.FirstOrDefault();
+            for (var index = 1; index < matches.Count; index++)
+            {
+                UnityEngine.Object.DestroyImmediate(matches[index]);
+            }
+
+            if (gameObject != null && !(gameObject.transform is RectTransform))
+            {
+                UnityEngine.Object.DestroyImmediate(gameObject);
+                gameObject = null;
+            }
+
+            if (gameObject == null)
+            {
+                var requestedComponents = new List<Type> { typeof(RectTransform), typeof(CanvasRenderer) };
+                requestedComponents.AddRange(components.Where(component => component != typeof(RectTransform)));
+                gameObject = new GameObject(name, requestedComponents.Distinct().ToArray());
+                gameObject.transform.SetParent(parent, false);
+            }
+            else
+            {
+                foreach (var componentType in components)
+                {
+                    var existing = gameObject.GetComponents(componentType);
+                    if (existing.Length == 0)
+                    {
+                        gameObject.AddComponent(componentType);
+                        continue;
+                    }
+
+                    for (var index = 1; index < existing.Length; index++)
+                    {
+                        UnityEngine.Object.DestroyImmediate(existing[index]);
+                    }
+                }
+            }
+
+            return gameObject;
         }
 
         private static void SetRect(

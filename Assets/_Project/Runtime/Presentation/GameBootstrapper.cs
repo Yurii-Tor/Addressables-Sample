@@ -21,6 +21,11 @@ namespace AddressablesSample.Game.Presentation
 
         public GameController Controller => _controller;
         internal string ScenarioStatusLabel => _scenarioCommands == null ? null : _scenarioCommands.StatusLabel;
+        internal bool CanStartDemoScenarios => _scenarioCommands != null && _scenarioCommands.CanStartCommands;
+
+        internal bool TryStartSlowDemoScenario() => _scenarioCommands != null && _scenarioCommands.TryStartSlowRound();
+        internal bool TryStartFailureDemoScenario() => _scenarioCommands != null && _scenarioCommands.TryStartFailure();
+        internal bool TryStartReplacementDemoScenario() => _scenarioCommands != null && _scenarioCommands.TryStartReplacement();
 
         private async void Start()
         {
