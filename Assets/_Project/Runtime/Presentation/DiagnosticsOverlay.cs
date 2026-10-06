@@ -3,7 +3,7 @@ using System.Text;
 using AddressablesSample.Game.AddressableAssets;
 using AddressablesSample.Game.Core;
 using UnityEngine;
-using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 namespace AddressablesSample.Game.Presentation
 {
@@ -18,54 +18,29 @@ namespace AddressablesSample.Game.Presentation
         private const int MaxTraceEntries = 6;
 
         [SerializeField] private GameBootstrapper _bootstrapper;
-        [SerializeField] private bool _visible = true;
+        [SerializeField] private Text _contentText;
 
         private readonly List<string> _trace = new List<string>(MaxTraceEntries);
         private readonly List<TerminalRoundRecord> _unseenRounds = new List<TerminalRoundRecord>(GameController.RoundHistoryCapacity);
         private readonly StringBuilder _builder = new StringBuilder(256);
-        private GUIStyle _panelStyle;
-        private GUIStyle _labelStyle;
-        private Texture2D _panelTexture;
         private GameController _observedController;
         private long _lastReadSequence;
         private long _missedRounds;
+        private string _lastRenderedText;
 
         internal IReadOnlyList<string> TraceEntries => _trace;
         internal long MissedRounds => _missedRounds;
 
-        internal void Configure(GameBootstrapper bootstrapper, bool visible)
+        internal void Configure(GameBootstrapper bootstrapper, Text contentText)
         {
             _bootstrapper = bootstrapper;
-            _visible = visible;
+            _contentText = contentText;
         }
 
         private void Update()
         {
-            ReadToggle();
             SampleRoundTrace();
-        }
-
-        private void OnDestroy()
-        {
-            if (_panelTexture != null)
-            {
-                Destroy(_panelTexture);
-                _panelTexture = null;
-            }
-        }
-
-        private void ReadToggle()
-        {
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-            {
-                return;
-            }
-
-            if (keyboard.backquoteKey.wasPressedThisFrame || keyboard.f1Key.wasPressedThisFrame)
-            {
-                _visible = !_visible;
-            }
+            RefreshText();
         }
 
         /// <summary>
@@ -110,30 +85,28 @@ namespace AddressablesSample.Game.Presentation
             }
         }
 
-        private void OnGUI()
+        private void RefreshText()
         {
-            if (!_visible)
+            if (_contentText == null)
             {
                 return;
             }
 
-            EnsureStyles();
-
             var controller = _bootstrapper == null ? null : _bootstrapper.Controller;
             _builder.Clear();
-            _builder.AppendLine("ADDRESSABLES DIAGNOSTICS   [~] or [F1] to hide");
-            _builder.AppendLine();
+            _builder.AppendLine("DIAGNOSTICS");
 
             if (controller == null)
             {
-                _builder.AppendLine("controller      not constructed yet");
+                _builder.AppendLine("state  Starting");
+                _builder.AppendLine("score  0");
             }
             else
             {
-                _builder.AppendLine($"state           {controller.State}");
-                _builder.AppendLine($"score           {controller.Score}");
-                _builder.AppendLine($"round gen       #{controller.RoundGeneration}");
-                _builder.AppendLine($"last round      {controller.LastRoundLoadMilliseconds:F0} ms");
+                _builder.AppendLine($"state  {controller.State}");
+                _builder.AppendLine($"score  {controller.Score}");
+                _builder.AppendLine($"round gen  #{controller.RoundGeneration}");
+                _builder.AppendLine($"last round  {controller.LastRoundLoadMilliseconds:F0} ms");
             }
 
             _builder.AppendLine($"Active load owners  {AddressableOwnershipDiagnostics.ActiveOwnerCount}");
@@ -141,57 +114,34 @@ namespace AddressablesSample.Game.Presentation
             var scenarioStatus = _bootstrapper == null ? null : _bootstrapper.ScenarioStatusLabel;
             if (!string.IsNullOrWhiteSpace(scenarioStatus))
             {
-                _builder.AppendLine($"scenario        {scenarioStatus}");
+                _builder.Append("scenario  ").AppendLine(scenarioStatus);
+            }
+            else
+            {
+                _builder.AppendLine("scenario  no simulation has run");
             }
 
             if (_missedRounds > 0)
             {
-                _builder.AppendLine($"history gap     {_missedRounds} older round outcome(s) lost");
+                _builder.AppendLine($"history gap  {_missedRounds} older round outcome(s) lost");
             }
 
             if (_trace.Count > 0)
             {
                 _builder.AppendLine();
+                _builder.AppendLine("Recent round outcomes");
                 for (var index = 0; index < _trace.Count; index++)
                 {
                     _builder.AppendLine(_trace[index]);
                 }
             }
 
-            var content = new GUIContent(_builder.ToString().TrimEnd());
-            var size = _labelStyle.CalcSize(content);
-            var rect = new Rect(16f, Screen.height - size.y - 32f, size.x + 24f, size.y + 20f);
-            GUI.Box(rect, GUIContent.none, _panelStyle);
-            GUI.Label(new Rect(rect.x + 12f, rect.y + 10f, size.x, size.y), content, _labelStyle);
-        }
-
-        private void EnsureStyles()
-        {
-            if (_panelTexture == null)
+            var renderedText = _builder.ToString().TrimEnd();
+            if (!string.Equals(_lastRenderedText, renderedText, System.StringComparison.Ordinal))
             {
-                _panelTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
-                {
-                    hideFlags = HideFlags.HideAndDontSave
-                };
-                _panelTexture.SetPixel(0, 0, new Color(0f, 0f, 0f, 0.66f));
-                _panelTexture.Apply();
-                _panelStyle = null;
+                _contentText.text = renderedText;
+                _lastRenderedText = renderedText;
             }
-
-            _panelStyle ??= new GUIStyle(GUIStyle.none)
-            {
-                normal = { background = _panelTexture }
-            };
-
-            // The built-in skin font is used deliberately: an OS font lookup is not portable to
-            // WebGL or mobile players, which is exactly where this overlay has to keep working.
-            _labelStyle ??= new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 15,
-                richText = false,
-                wordWrap = false,
-                normal = { textColor = new Color(0.72f, 0.94f, 0.78f, 1f) }
-            };
         }
     }
 }

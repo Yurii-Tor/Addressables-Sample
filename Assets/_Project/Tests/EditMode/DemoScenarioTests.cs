@@ -7,12 +7,14 @@ using AddressablesSample.Game.Core;
 using AddressablesSample.Game.Presentation;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace AddressablesSample.Game.Tests.EditMode
 {
     public sealed class DemoScenarioTests
     {
         private Fixture _fixture;
+        private GameObject _controlsRoot;
         private float _previousTimeScale;
 
         [SetUp]
@@ -22,6 +24,12 @@ namespace AddressablesSample.Game.Tests.EditMode
         public void TearDown()
         {
             Time.timeScale = _previousTimeScale;
+            if (_controlsRoot != null)
+            {
+                UnityEngine.Object.DestroyImmediate(_controlsRoot);
+                _controlsRoot = null;
+            }
+
             _fixture?.Dispose();
         }
 
@@ -242,6 +250,95 @@ namespace AddressablesSample.Game.Tests.EditMode
         }
 
         [Test, Timeout(5000)]
+        public async Task ScenarioControls_AreEnabledOnlyWhileTheControllerCanAcceptCommands()
+        {
+            _fixture = new Fixture();
+            var controls = CreateControlsView(_fixture.Bootstrapper);
+
+            controls.RefreshInteractability();
+            AssertScenarioButtonsInteractable(controls, false, "startup");
+
+            await _fixture.ReachReadyAsync();
+            controls.RefreshInteractability();
+            AssertScenarioButtonsInteractable(controls, true, "Ready");
+
+            Assert.That(_fixture.Commands.TryStartSlowRound(), Is.True);
+            controls.RefreshInteractability();
+            AssertScenarioButtonsInteractable(controls, false, "an active scenario");
+
+            var slowRound = _fixture.Inner.At<Texture2D>(3);
+            slowRound.CompleteSuccess(_fixture.RoundB);
+            await WaitUntilAsync(() => _fixture.Commands.PendingDelayCount == 1);
+            var slowTask = _fixture.Controller.ActiveRoundTask;
+            _fixture.Commands.AdvanceTime((float)DemoScenarioAssetLoader.SlowDeliverySeconds);
+            await slowTask;
+            controls.RefreshInteractability();
+            AssertScenarioButtonsInteractable(controls, true, "settled Ready");
+
+            _fixture.Commands.StopAndCancel();
+            controls.RefreshInteractability();
+            AssertScenarioButtonsInteractable(controls, false, "disposed command service");
+        }
+
+        [Test, Timeout(5000)]
+        public async Task ScenarioControls_RemainDisabledAfterFatalStartup()
+        {
+            using (var fixture = new Fixture(invalidConfiguration: true))
+            {
+                var controls = CreateControlsView(fixture.Bootstrapper);
+                await fixture.Controller.InitializeAsync();
+                Assert.That(fixture.Controller.State, Is.EqualTo(GameState.FatalError));
+
+                controls.RefreshInteractability();
+                AssertScenarioButtonsInteractable(controls, false, "FatalError");
+                Assert.That(fixture.Commands.TryStartFailure(), Is.False);
+                Assert.That(fixture.Inner.Requests, Is.Empty);
+            }
+        }
+
+        private DemoControlsView CreateControlsView(GameBootstrapper bootstrapper)
+        {
+            _controlsRoot = new GameObject("Demo Controls EditMode Test", typeof(RectTransform));
+            var safeArea = new GameObject("Safe Area", typeof(RectTransform)).GetComponent<RectTransform>();
+            safeArea.SetParent(_controlsRoot.transform, false);
+            var panel = new GameObject("Panel", typeof(RectTransform)).GetComponent<RectTransform>();
+            panel.SetParent(safeArea, false);
+
+            var view = _controlsRoot.AddComponent<DemoControlsView>();
+            view.Configure(
+                bootstrapper,
+                safeArea,
+                panel,
+                CreateTestButton(_controlsRoot.transform, "Slow"),
+                CreateTestButton(_controlsRoot.transform, "Failure"),
+                CreateTestButton(_controlsRoot.transform, "Replacement"),
+                CreateTestButton(_controlsRoot.transform, "Toggle"),
+                null,
+                true);
+            return view;
+        }
+
+        private static Button CreateTestButton(Transform parent, string name)
+        {
+            var gameObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            gameObject.transform.SetParent(parent, false);
+            var button = gameObject.GetComponent<Button>();
+            button.targetGraphic = gameObject.GetComponent<Image>();
+            return button;
+        }
+
+        private static void AssertScenarioButtonsInteractable(
+            DemoControlsView controls,
+            bool expected,
+            string state)
+        {
+            Assert.That(controls.SlowLoadButton.interactable, Is.EqualTo(expected), "slow-load button while " + state);
+            Assert.That(controls.SimulateFailureButton.interactable, Is.EqualTo(expected), "failure button while " + state);
+            Assert.That(controls.ReplaceRequestButton.interactable, Is.EqualTo(expected), "replacement button while " + state);
+            Assert.That(controls.ToggleDiagnosticsButton.interactable, Is.True, "diagnostics toggle remains available while " + state);
+        }
+
+        [Test, Timeout(5000)]
         public async Task SlowCommand_KeepsPreviousTextureAndUsesUnscaledManualTime()
         {
             _fixture = new Fixture();
@@ -419,7 +516,7 @@ namespace AddressablesSample.Game.Tests.EditMode
             public const string RoundCKey = "round-c";
             private bool _disposed;
 
-            public Fixture()
+            public Fixture(bool invalidConfiguration = false)
             {
                 Events = new List<string>();
                 RootObject = new GameObject("P05 Scenario Test Bootstrapper");
@@ -446,7 +543,9 @@ namespace AddressablesSample.Game.Tests.EditMode
                     Commands.DelayAsync,
                     () => Controller != null && Controller.CanAcceptScenarioCommands);
                 Controller = new GameController(
-                    new FakeConfiguration { Definition = definition },
+                    invalidConfiguration
+                        ? new FakeConfiguration { Error = "Controlled invalid configuration for P06 controls test." }
+                        : new FakeConfiguration { Definition = definition },
                     ScenarioLoader,
                     Hud,
                     Factory,

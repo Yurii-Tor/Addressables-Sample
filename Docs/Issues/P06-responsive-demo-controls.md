@@ -38,7 +38,9 @@ Do not add UI Toolkit/TMP migration or third-party UI packages to this task.
 5. Set raycastTarget intentionally. Buttons consume the pointer even when disabled.
    Hidden panels cannot block world input. Preserve hit and empty-space miss behavior elsewhere.
 6. Use CanvasScaler, anchors/layout and bounded/scrolling history. Support safe areas as practical.
-   Validate 360x640 portrait, 640x360 landscape and 1280x720; readable text, no target/control overlap that prevents play.
+   Keep scenario names, visible shortcut keys and concise purpose/limit text readable without
+   horizontal clipping. Validate 360x640 portrait, 640x360 landscape, 960x600 with the longest
+   retained history, and 1280x720; controls must not cover the playable target.
 7. Update setup idempotency and validator expectations together, including the EventSystem,
    references and intentional extra roots/children. Never hand-edit scene/prefab/.meta YAML.
 
@@ -47,7 +49,8 @@ Do not add UI Toolkit/TMP migration or third-party UI packages to this task.
 - [ ] Pressing UI over cube or empty space causes no world selection or red flash.
 - [ ] Hidden panel permits world input; normal miss/hit still work.
 - [ ] Startup/fatal states disable inappropriate commands.
-- [ ] Narrow viewports show readable, accessible controls without horizontal clipping.
+- [ ] Narrow viewports show readable, accessible controls and visible key/purpose labels without
+  horizontal clipping; the longest history remains reachable by scrolling.
 - [ ] Repeated setup produces no duplicate EventSystem, handlers or controls.
 
 ## Verification and stop

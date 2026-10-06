@@ -1,4 +1,53 @@
-# Current milestone: P05 controlled demo scenarios (2026-10-01)
+# Current milestone: P06 touch-friendly demo controls (2026-10-06)
+
+- Base: verified `main` at `abfd9a3815c97239346a917f4c70edb1c57a513e` (PR #21 merged).
+- Branch: `codex/p06-ui-controls` in a managed worktree based on that exact commit.
+- Scope: GitHub Issue #8 only; preserve the one-scene architecture, P03 generation gate,
+  P04 history contract, P05 scenario semantics, and retained checkout.
+- Authorized: implementation, tests, focused commit, push, and PR; no merge, public deploy,
+  release, tag, issue closure, or cleanup/archive of the retained checkout or task worktree.
+- Exit: verified PR, complete Unity/browser evidence matrix, and a durable ignored local handoff
+  package whose manifest records source SHA and artifact SHA-256 values.
+
+- [x] Read repository/status/direction rules, selected brief, live Issue #8, operations and source map.
+- [x] Verify merged P05 base, no product release tags, and isolated task worktree.
+- [x] Add generated uGUI controls, scenario routing, diagnostics panel, responsive/safe-area layout,
+  and current-position UI pointer arbitration.
+- [x] Extend idempotent setup and structural validation without hand-editing Unity serialization.
+- [x] Add and run control-state, mouse/touch, button-over-target, hit/miss, hidden-panel, and
+  repeated-setup regressions.
+- [x] Update operating instructions and complete ownership/stale-continuation review.
+- [x] Run full EditMode, generated-project, PlayMode Asset Database, fresh content build,
+  PlayMode Existing Build, desktop restore, and final structural gates.
+- [x] Build and exercise a local WebGL player at 360×640, 640×360, 960×600, and 1280×720;
+  capture screenshots and browser/console evidence.
+- [ ] Create the ignored retained-checkout handoff bundle with source provenance and verified hashes.
+- [ ] Commit focused files, push, open PR against `main`, verify required CI on the final head,
+  attach the PR, and leave the managed worktree available for orchestrator review.
+
+Decision: use the existing uGUI/EventSystem/Input System UI module and one generated safe-area
+panel. Current-position `GraphicRaycaster` checks consume presses over buttons (including disabled
+buttons) and the diagnostics `ScrollRect`; decorative graphics pass through. P05 command behavior
+continues through bootstrapper presentation wrappers. The diagnostics history stays bounded and
+polling-based, with a scroll viewport and no IMGUI lifetime.
+
+Verification: 2026-10-06 — targeted scenario EditMode 13/13, full EditMode 74/74, P06 controls
+PlayMode 2/2, Asset Database PlayMode 7/7, and Existing Build PlayMode 7/7 passed, with zero
+failures or skips. The fresh Local Addressables build produced 24 catalog locations. Desktop restore
+logged `Local + Use Asset Database (fastest)`. The final generated-project gate ran setup twice;
+the 74-file scoped SHA-256 manifests matched and structural validation passed.
+
+The 12.7 MB WebGL player was exercised locally at all four listed viewport sizes; the fullscreen
+canvas CSS rectangle matched each viewport. At 960×600, all six retained outcomes were shown and
+the history viewport scrolled to both the outcome list and earlier diagnostics. The browser logged
+zero errors and nine expected simulated-fallback warnings. Screenshots were captured in the task's
+Codex in-app browser evidence outputs. Its screenshot API returned transient bytes without a local
+export path; `Logs/P06-WebGLBrowserEvidence.md` records the measured matrix and console result. The
+WebGL build is for validation only and will not be deployed.
+
+---
+
+# Historical milestone: P05 controlled demo scenarios (2026-10-01)
 
 Codex setup:
 - Model/effort: Luna 6 / Max; mode: Default.

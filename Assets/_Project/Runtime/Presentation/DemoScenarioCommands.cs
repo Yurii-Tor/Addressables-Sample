@@ -9,8 +9,8 @@ using UnityEngine.InputSystem;
 namespace AddressablesSample.Game.Presentation
 {
     /// <summary>
-    /// Temporary development commands for P05. The bootstrapper owns this component and its
-    /// frame-driven unscaled delay queue; P06 can add visible buttons without changing behavior.
+    /// Development commands for the visible P05 scenarios. The bootstrapper owns this component
+    /// and its frame-driven unscaled delay queue; presentation controls do not change its behavior.
     /// </summary>
     public sealed class DemoScenarioCommands : MonoBehaviour
     {
@@ -49,6 +49,12 @@ namespace AddressablesSample.Game.Presentation
         internal string StatusLabel { get; private set; }
         internal bool IsReplacementSequenceActive => _replacementPhase != ReplacementPhase.None;
         internal int PendingDelayCount => _delayWaiters.Count;
+        internal bool CanStartCommands =>
+            CanStartCommand() &&
+            _bootstrapper.Controller != null &&
+            _bootstrapper.Controller.CanAcceptScenarioCommands &&
+            _replacementPhase == ReplacementPhase.None &&
+            (_singleRoundTask == null || _singleRoundTask.IsCompleted);
 
         internal void Configure(GameBootstrapper bootstrapper, DemoScenarioAssetLoader scenarioLoader)
         {
