@@ -138,6 +138,12 @@ namespace AddressablesSample.Game.Presentation
 
             _builder.AppendLine($"Active load owners  {AddressableOwnershipDiagnostics.ActiveOwnerCount}");
 
+            var scenarioStatus = _bootstrapper == null ? null : _bootstrapper.ScenarioStatusLabel;
+            if (!string.IsNullOrWhiteSpace(scenarioStatus))
+            {
+                _builder.AppendLine($"scenario        {scenarioStatus}");
+            }
+
             if (_missedRounds > 0)
             {
                 _builder.AppendLine($"history gap     {_missedRounds} older round outcome(s) lost");

@@ -51,6 +51,7 @@ namespace AddressablesSample.Game.Core
         private Texture2D _fallbackTexture;
         private ITargetView _target;
         private int _roundGeneration;
+        private bool _hasReachedReady;
         private Task _activeRoundTask = Task.CompletedTask;
         private readonly Stopwatch _roundStopwatch = new Stopwatch();
         private readonly TerminalRoundRecord[] _roundHistory = new TerminalRoundRecord[RoundHistoryCapacity];
@@ -75,6 +76,22 @@ namespace AddressablesSample.Game.Core
         public GameState State => _state;
         public int Score { get; private set; }
         internal Task ActiveRoundTask => _activeRoundTask;
+        internal bool CanAcceptScenarioCommands =>
+            HasValidTarget() &&
+            (_state == GameState.Ready || (_state == GameState.LoadingRound && _hasReachedReady));
+
+        internal bool TryBeginScenarioRound(out Task roundTask)
+        {
+            roundTask = Task.CompletedTask;
+            if (!CanAcceptScenarioCommands)
+            {
+                return false;
+            }
+
+            BeginRound();
+            roundTask = _activeRoundTask;
+            return true;
+        }
 
         /// <summary>
         /// Monotonic identifier of the newest round request. Every pending load carries the
@@ -178,6 +195,7 @@ namespace AddressablesSample.Game.Core
 
             try
             {
+                _activeRoundTask = Task.CompletedTask;
                 _state = GameState.LoadingRound;
                 _target.SetInteractionEnabled(false);
                 _hud.SetStatus(GameStatusText.LoadingImage);
@@ -395,6 +413,7 @@ namespace AddressablesSample.Game.Core
         {
             _hud.SetStatus(fallbackInUse ? GameStatusText.ReadyWithFallback : GameStatusText.Ready);
             _state = GameState.Ready;
+            _hasReachedReady = true;
             _target.SetInteractionEnabled(true);
         }
 

@@ -79,9 +79,18 @@ Open `Assets/_Project/Scenes/Game.unity` and enter Play Mode.
   request the next image.
 - Click or tap away from the cube to flash it red briefly. A miss does not change the score,
   texture, or active round request.
+- Normal click/tap selection is accepted only while the controller is in `Ready`; it is
+  disabled during startup and round loading.
 - Press <kbd>~</kbd> or <kbd>F1</kbd> to toggle the diagnostics overlay.
-- Input is accepted only while the controller is in `Ready`; it is disabled during startup
-  and round loading.
+- With the game canvas focused after startup, the temporary P05 development controls are:
+  - <kbd>1</kbd> delays the next configured round texture by 2 seconds of unscaled time.
+    It holds the displayed texture and does not measure network latency.
+  - <kbd>2</kbd> returns a synthetic failure for the next configured round texture. The
+    controller applies the retained checkerboard fallback; no transport failure is measured.
+  - <kbd>3</kbd> starts round A with the same delay, then starts round B after 0.15 seconds
+    of unscaled time. B supersedes A; the score does not change.
+  - Scenario controls work only after the first `Ready` state. A repeated scenario command
+    is rejected while one is active. The overlay labels each simulation and its limits.
 
 The target is instantiated once from the Addressable prefab. Round changes update its
 renderer through a `MaterialPropertyBlock`; the shared material is never instantiated or
@@ -98,6 +107,8 @@ loading, round loading, `Ready`, and finally either `FatalError` or `Disposed`.
   the previous round owner.
 - A failed round request applies the retained checkerboard fallback, reports one controlled
   warning, and returns to `Image failed - using fallback. Tap the object!`.
+- The overlay scenario line distinguishes synthetic failure, simulated delivery delay and A→B
+  sequencing from measured network timing or transport cancellation.
 - A hit increments the score exactly once. A miss never increments it.
 - Failure to load a required startup asset enters `Unable to start. See Console.` and
   performs full cleanup.
@@ -118,8 +129,9 @@ than 16 outcomes arrive before its next poll. Its trace and cursor reset for a n
 Addressables `4.0.1` no longer ships the legacy **Simulate Groups** play-mode script. Its
 supported local-emulation replacement is **Use Asset Database (fastest)**. This project
 configures that mode with a `0.25` second simulated load delay so loading is observable.
-Stale replacement is exercised separately by the delayed-owner PlayMode tests because normal
-player input is disabled while a round is loading.
+Normal click/tap selection remains disabled while a round is loading. P05 adds a separate
+development hotkey sequence for controlled A→B supersession; the delayed-owner PlayMode tests
+remain an independent regression for hostile late success.
 
 Choose **AddressablesSample > Game > Addressables > Use Asset Database**, or run:
 
@@ -383,6 +395,13 @@ handle reference and releases it exactly once. The fallback and prefab owners re
 retained for the playable session. The displayed round owner remains retained until a
 replacement or fallback has been applied. Teardown disables and destroys the instantiated
 target before releasing the prefab, round, and fallback owners.
+
+`DemoScenarioAssetLoader` applies a one-shot instruction only to configured round texture
+keys; startup, fallback, prefab, and ordinary requests pass through. Its slow-load wrapper
+retains exactly one inner owner and releases it once. A simulated failure creates no raw
+Addressables handle. `DemoScenarioCommands` advances delay and A→B sequencing with
+`Time.unscaledDeltaTime` on the Unity main thread. `GameBootstrapper` cancels that scheduler
+before disposing the controller.
 
 The implementation contains no `WaitForCompletion`, `Task.Wait`, synchronous `.Result`, or
 busy waiting. The only runtime `async void` method is the Unity `Start` lifecycle boundary.
